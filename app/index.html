@@ -19,6 +19,23 @@
   ::-webkit-scrollbar-thumb:hover { background: #4c566a; }
   
   .rhino-panel { background: #242730; border-color: #323642; }
+  /* Requested cleanup: hide the five legacy export/boolean buttons from the compact sidebar. */
+  div:has(> #btn-export-dxf), div:has(> #btn-bool-union) { display:none !important; }
+  /* Dock layout controls: panels can be resized; bottom-dock is toggled per panel. */
+  #app-body { display:grid; grid-template-columns: minmax(190px, 230px) minmax(300px,1fr) minmax(210px,260px); grid-template-rows:minmax(0,1fr); grid-template-areas:"tools stage props"; }
+  #tools-panel { grid-area:tools; min-width:190px; max-width:42vw; resize:horizontal; }
+  #stage-panel { grid-area:stage; min-width:0; }
+  #properties-panel { grid-area:props; min-width:210px; max-width:42vw; resize:horizontal; }
+  #app-body.dock-tools-bottom { grid-template-rows:minmax(0,1fr) minmax(130px,28vh); grid-template-areas:"stage stage stage" "tools tools props"; }
+  #app-body.dock-props-bottom { grid-template-rows:minmax(0,1fr) minmax(130px,28vh); grid-template-areas:"tools stage stage" "props props props"; }
+  #app-body.dock-both-bottom { grid-template-rows:minmax(0,1fr) minmax(130px,28vh); grid-template-areas:"stage stage stage" "tools tools props"; }
+  #tools-panel.docked-bottom, #properties-panel.docked-bottom { max-width:none; width:auto; resize:vertical; overflow:auto; border-top:1px solid #323642; }
+  #stage-panel { display:flex; flex-direction:column; overflow:hidden; }
+  #command-bar { min-height:38px; height:44px; flex-shrink:0; resize:vertical; overflow:auto; }
+  .dock-controls { display:flex; gap:4px; align-items:center; }
+  .dock-select { background:#181920; border:1px solid #383e4c; color:#d4d7de; border-radius:4px; padding:2px 4px; font-size:10px; max-width:82px; }
+  #snap-marker { position:absolute; width:12px; height:12px; border:2px solid #2fefad; border-radius:50%; box-shadow:0 0 0 3px #2fefad33; transform:translate(-50%,-50%); pointer-events:none; z-index:20; display:none; }
+  #snap-status { color:#2fefad; font-size:10px; font-weight:700; }
   .rhino-input { background: #181920; border: 1px solid #383e4c; color: #e5e9f0; border-radius: 4px; padding: 4px 8px; }
   .rhino-input:focus { border-color: #5c7cfa; outline: none; }
   .rhino-btn { background: #2e3340; border: 1px solid #3e4452; transition: all 0.15s; }
@@ -82,14 +99,14 @@
 </header>
 
 <!-- MAIN APP BODY -->
-<div class="flex-1 grid grid-cols-[230px_1fr_260px] overflow-hidden">
+<div id="app-body" class="flex-1 overflow-hidden">
   
   <!-- LEFT SIDEBAR: Tools & Creation -->
-  <aside class="rhino-panel border-r border-[#323642] flex flex-col overflow-y-auto text-xs">
+  <aside id="tools-panel" class="rhino-panel border-r border-[#323642] flex flex-col overflow-y-auto text-xs">
     
     <!-- Creation Panel -->
     <div class="p-3 border-b border-[#323642]">
-      <h3 class="font-semibold text-gray-400 uppercase tracking-wider mb-2 text-[10px]">Tạo Khối (Primitive 3D)</h3>
+      <div class="flex items-center justify-between gap-1 mb-2"><h3 class="font-semibold text-gray-400 uppercase tracking-wider text-[10px]">Tạo Khối (Primitive 3D)</h3><select class="dock-select" data-dock-target="tools-panel" title="Vị trí bảng tạo khối"><option value="left">Trái</option><option value="bottom">Dưới</option></select></div>
       <div class="grid grid-cols-2 gap-1.5">
         <button data-create="box" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-cube text-indigo-400"></i> Box</button>
         <button data-create="sphere" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-globe text-cyan-400"></i> Sphere</button>
@@ -145,6 +162,15 @@
         <button id="btn-group" class="rhino-btn p-1.5 rounded">Group</button>
         <button id="btn-ungroup" class="rhino-btn p-1.5 rounded">Ungroup</button>
       </div>
+      <div class="mt-2 p-2 rounded border border-[#383e4c] bg-[#181920]">
+        <div class="flex items-center justify-between mb-1"><span class="text-[10px] uppercase text-gray-400 font-semibold">Object Snap (OSNAP)</span><span id="snap-status">ON</span></div>
+        <div class="grid grid-cols-2 gap-1 text-[10px]">
+          <label class="flex items-center gap-1"><input id="snap-endpoint" type="checkbox" checked> Endpoint</label>
+          <label class="flex items-center gap-1"><input id="snap-midpoint" type="checkbox" checked> Midpoint</label>
+          <label class="flex items-center gap-1"><input id="snap-center" type="checkbox" checked> Center</label>
+          <label class="flex items-center gap-1"><input id="snap-face" type="checkbox" checked> Face/Surface</label>
+        </div>
+      </div>
       <div class="grid grid-cols-2 gap-1.5 mb-2">
         <button id="btn-export-dxf" class="rhino-btn p-1.5 rounded">Export DXF 2D</button>
         <button id="btn-export-obj" class="rhino-btn p-1.5 rounded">Export OBJ 3D</button>
@@ -190,13 +216,14 @@
   </div>
 
   <!-- CENTER STAGE & COMMAND LINE -->
-  <main class="relative bg-[#16171d] flex flex-col overflow-hidden">
+  <main id="stage-panel" class="relative bg-[#16171d] flex flex-col overflow-hidden">
     
     <!-- Viewport Canvas -->
     <div id="viewport-container" class="flex-1 relative w-full h-full">
       <canvas id="view-canvas" class="w-full h-full block touch-none"></canvas>
       
       <!-- Overlay Tags -->
+      <div id="snap-marker"></div>
       <div class="absolute top-3 left-3 flex gap-2 pointer-events-none">
         <div id="view-tag" class="bg-[#181920]/80 border border-[#383e4c] rounded px-2 py-1 text-xs text-gray-300 backdrop-blur">Perspective</div>
         <div id="sel-tag" class="bg-[#181920]/80 border border-[#383e4c] rounded px-2 py-1 text-xs text-indigo-300 backdrop-blur">Chưa chọn đối tượng</div>
@@ -209,7 +236,7 @@
     </div>
 
     <!-- Command Line Section -->
-    <div class="h-11 bg-[#181920] border-t border-[#323642] px-3 flex items-center gap-3 relative">
+    <div id="command-bar" class="bg-[#181920] border-t border-[#323642] px-3 flex items-center gap-3 relative">
       <div class="text-xs font-semibold text-indigo-400 whitespace-nowrap">Command:</div>
       <div class="relative flex-1">
         <input id="command-input" type="text" class="rhino-input w-full text-xs" placeholder="Gõ lệnh (vd: Box, Line, Move, Rotate, Extrude, Union, Mirror, Array...)">
@@ -221,11 +248,11 @@
   </main>
 
   <!-- RIGHT SIDEBAR: Properties & Object List -->
-  <aside class="rhino-panel border-l border-[#323642] flex flex-col overflow-y-auto text-xs">
+  <aside id="properties-panel" class="rhino-panel border-l border-[#323642] flex flex-col overflow-y-auto text-xs">
     
     <!-- Properties Panel -->
     <div class="p-3 border-b border-[#323642]">
-      <h3 class="font-semibold text-gray-400 uppercase tracking-wider mb-2 text-[10px]">Properties</h3>
+      <div class="flex items-center justify-between gap-1 mb-2"><h3 class="font-semibold text-gray-400 uppercase tracking-wider text-[10px]">Properties</h3><select class="dock-select" data-dock-target="properties-panel" title="Vị trí bảng Properties"><option value="right">Phải</option><option value="bottom">Dưới</option></select></div>
       
       <div class="space-y-2">
         <div>
@@ -360,6 +387,8 @@ let selectedObjects = [];
 let preserveMultiSelection = false;
 let lastListSelection = null;
 let orthoEnabled = false;
+let snapMarkerMesh = null;
+let lastSnapKind = "";
 let gumballEnabled = true;
 let layers = [
   { id: 1, name: 'Default', color: '#5c7cfa', visible: true, locked: false },
@@ -512,8 +541,10 @@ function init() {
   updateObjectsList();
   initAdvancedTools();
   initUiCustomization();
+initDockLayout();
   
   window.addEventListener('resize', onWindowResize);
+if(window.ResizeObserver){const ro=new ResizeObserver(()=>onWindowResize());ro.observe(document.getElementById('viewport-container'));}
   animate();
 }
 
@@ -687,10 +718,10 @@ function finishDraw() {
     mesh=new THREE.Mesh(new THREE.ShapeGeometry(sh),new THREE.MeshStandardMaterial({color:'#5c7cfa',side:THREE.DoubleSide,transparent:true,opacity:.55}));
     shapePoints=Array.from({length:64},(_,i)=>[a.x+r*Math.cos(i*Math.PI/32),a.y+r*Math.sin(i*Math.PI/32)]);closed=true;mesh.position.z=.005;
   } else {
-    const linePts=pts.map(p=>new THREE.Vector3(p.x,p.y,0.01));
+    const linePts=pts.map(p=>new THREE.Vector3(p.x,p.y,(mode==='line'||mode==='polyline')?p.z+0.01:0.01));
     const geom=new THREE.BufferGeometry().setFromPoints(linePts);
     mesh=new THREE.Line(geom,new THREE.LineBasicMaterial({color:'#5c7cfa'}));
-    shapePoints=pts.map(p=>[p.x,p.y]);
+    shapePoints=pts.map(p=>[p.x,p.y,p.z]);
   }
   const obj={id:objectIdCounter++,name:`${mode[0].toUpperCase()+mode.slice(1)}_${String(objectIdCounter).padStart(2,'0')}`,type:mode==='line'?'line2d':mode,mesh,layerId:currentLayerId,color:'#5c7cfa',shapePoints,closed};
   mesh.userData={objData:obj,shapePoints,closed};scene.add(mesh);objects.push(obj);selectObject(obj);updateObjectsList();
@@ -919,7 +950,38 @@ function setupEvents() {
   const xyPlane=new THREE.Plane(new THREE.Vector3(0,0,1),0);
   function pointerWorld(e, plane=xyPlane){
     const r=canvas.getBoundingClientRect();mouse.x=((e.clientX-r.left)/r.width)*2-1;mouse.y=-((e.clientY-r.top)/r.height)*2+1;
-    raycaster.setFromCamera(mouse,camera);const out=new THREE.Vector3();return raycaster.ray.intersectPlane(plane,out)?out:null;
+    raycaster.setFromCamera(mouse,camera);
+    // OSNAP: prioritize nearby endpoints/midpoints/centers in screen space, then exact face hit.
+    const snapEnabled = ['snap-endpoint','snap-midpoint','snap-center','snap-face'].some(id=>document.getElementById(id)?.checked);
+    const draw3d = drawMode==='line' || drawMode==='polyline';
+    let best=null, bestPx=13, bestKind='';
+    if(snapEnabled){
+      const candidates=[];
+      objects.filter(o=>o.mesh?.visible&&!o.hiddenByGroup).forEach(o=>{
+        const g=o.mesh.geometry; if(!g)return;
+        const attr=g.attributes?.position;
+        if(attr && document.getElementById('snap-endpoint')?.checked){
+          const step=Math.max(1,Math.floor(attr.count>500?attr.count/100:1));
+          for(let i=0;i<attr.count;i+=step){const v=new THREE.Vector3().fromBufferAttribute(attr,i);o.mesh.localToWorld(v);candidates.push({p:v,kind:'Endpoint'});}
+        }
+        if(attr && document.getElementById('snap-midpoint')?.checked && (o.type==='line2d'||o.type==='polyline')){
+          const count=attr.count;
+          for(let i=0;i<count-1;i++){const a=new THREE.Vector3().fromBufferAttribute(attr,i),b=new THREE.Vector3().fromBufferAttribute(attr,i+1);o.mesh.localToWorld(a);o.mesh.localToWorld(b);candidates.push({p:a.add(b).multiplyScalar(.5),kind:'Midpoint'});}
+        }
+        if(document.getElementById('snap-center')?.checked){const box=new THREE.Box3().setFromObject(o.mesh);if(!box.isEmpty())candidates.push({p:box.getCenter(new THREE.Vector3()),kind:'Center'});}
+      });
+      for(const c of candidates){const v=c.p.clone().project(camera);const sx=r.left+(v.x+1)*r.width/2,sy=r.top+(1-v.y)*r.height/2;const d=Math.hypot(sx-e.clientX,sy-e.clientY);if(d<bestPx){bestPx=d;best=c.p.clone();bestKind=c.kind;}}
+    }
+    const hits=raycaster.intersectObjects(objects.filter(o=>o.mesh?.visible&&!o.hiddenByGroup).map(o=>o.mesh),true);
+    if(!best && hits.length && document.getElementById('snap-face')?.checked){best=hits[0].point.clone();bestKind='Face';}
+    if(best){
+      lastSnapKind=bestKind;const marker=document.getElementById('snap-marker');if(marker){const v=best.clone().project(camera);marker.style.left=((v.x+1)*r.width/2)+'px';marker.style.top=((1-v.y)*r.height/2)+'px';marker.style.display='block';marker.title=bestKind;}
+      const st=document.getElementById('snap-status');if(st)st.textContent=bestKind.toUpperCase();
+      return best;
+    }
+    const marker=document.getElementById('snap-marker');if(marker)marker.style.display='none';
+    const st=document.getElementById('snap-status');if(st)st.textContent='ON';
+    const out=new THREE.Vector3();return raycaster.ray.intersectPlane(plane,out)?out:null;
   }
   canvas.addEventListener('pointerdown',e=>{
     if(e.button!==0 && e.button!==2)return;
@@ -937,8 +999,9 @@ function setupEvents() {
     if(e.button===2)return;
     if(drawMode){
       const world=pointerWorld(e);if(!world)return;
-      let p=world.clone();p.z=0;
-      if((e.shiftKey||orthoEnabled)&&drawPoints.length){const prev=drawPoints[drawPoints.length-1],dx=p.x-prev.x,dy=p.y-prev.y;if(Math.abs(dx)>=Math.abs(dy))p.y=prev.y;else p.x=prev.x;}
+      let p=world.clone();
+      if(drawMode!=='line'&&drawMode!=='polyline')p.z=0;
+      if((e.shiftKey||orthoEnabled)&&drawPoints.length){const prev=drawPoints[drawPoints.length-1],dx=p.x-prev.x,dy=p.y-prev.y,dz=p.z-prev.z;if(Math.abs(dx)>=Math.abs(dy)){p.y=prev.y;}else{p.x=prev.x;}if(drawMode==='line'||drawMode==='polyline'){if(Math.abs(dz)>Math.max(Math.abs(dx),Math.abs(dy))) {p.x=prev.x;p.y=prev.y;} else p.z=prev.z;}}
       if(drawMode==='rectangle'||drawMode==='circle'){if(drawPoints.length===0)drawPoints.push(p);else{drawPoints.push(p);finishDraw();}}
       else if(drawMode==='line'){drawPoints.push(p);if(drawPoints.length>=2)finishDraw();}
       else if(drawMode==='arc'){drawPoints.push(p);if(drawPoints.length>=3){makeArcFromPoints(drawPoints);cancelDraw();}else redrawPreview();}
@@ -980,10 +1043,10 @@ function setupEvents() {
       if(selectedObject)refreshProperties();
       return;
     }
-    if(drawMode&&world){let p=world.clone();p.z=0;if((e.shiftKey||orthoEnabled)&&drawPoints.length){const prev=drawPoints[drawPoints.length-1],dx=p.x-prev.x,dy=p.y-prev.y;if(Math.abs(dx)>=Math.abs(dy))p.y=prev.y;else p.x=prev.x;}redrawPreview(p);return;}
+    if(drawMode&&world){let p=world.clone();if(drawMode!=='line'&&drawMode!=='polyline')p.z=0;if((e.shiftKey||orthoEnabled)&&drawPoints.length){const prev=drawPoints[drawPoints.length-1],dx=p.x-prev.x,dy=p.y-prev.y,dz=p.z-prev.z;if(Math.abs(dx)>=Math.abs(dy))p.y=prev.y;else p.x=prev.x;if((drawMode==='line'||drawMode==='polyline')&&Math.abs(dz)>Math.max(Math.abs(dx),Math.abs(dy))){p.x=prev.x;p.y=prev.y;}else p.z=prev.z;}redrawPreview(p);return;}
     if(dragObject&&world){
       let dx=world.x-dragStartWorld.x,dy=world.y-dragStartWorld.y;
-      if(e.shiftKey){if(Math.abs(dx)>=Math.abs(dy))dy=0;else dx=0;}
+      if(e.shiftKey||orthoEnabled){if(Math.abs(dx)>=Math.abs(dy))dy=0;else dx=0;}
       const starts=dragStartPositions||new Map([[selectedObject,dragStartPos]]);
       starts.forEach((pos,obj)=>obj.mesh.position.set(pos.x+dx,pos.y+dy,pos.z));
       if(selectedObject)gumballGroup.position.copy(selectedObject.mesh.position);
@@ -1524,6 +1587,27 @@ function populateSettingsControls(settings, name = drawingName) {
   document.getElementById('setting-show-drawing-name').checked = settings.showDrawingName !== false;
   document.getElementById('setting-drawing-name').value = name || 'Bản vẽ mới';
 }
+function initDockLayout(){
+  const body=document.getElementById('app-body');
+  const tools=document.getElementById('tools-panel');
+  const props=document.getElementById('properties-panel');
+  const selects=[...document.querySelectorAll('[data-dock-target]')];
+  const apply=()=>{
+    const a=document.querySelector('[data-dock-target="tools-panel"]')?.value||'left';
+    const b=document.querySelector('[data-dock-target="properties-panel"]')?.value||'right';
+    body.classList.remove('dock-tools-bottom','dock-props-bottom','dock-both-bottom');
+    tools.classList.toggle('docked-bottom',a==='bottom');props.classList.toggle('docked-bottom',b==='bottom');
+    if(a==='bottom'&&b==='bottom')body.classList.add('dock-both-bottom');
+    else if(a==='bottom')body.classList.add('dock-tools-bottom');
+    else if(b==='bottom')body.classList.add('dock-props-bottom');
+    try{localStorage.setItem('vcad-dock-layout',JSON.stringify({tools:a,properties:b}));}catch(_){}
+    setTimeout(()=>{if(camera&&renderer)onWindowResize();},100);
+  };
+  try{const saved=JSON.parse(localStorage.getItem('vcad-dock-layout')||'null');if(saved){const t=document.querySelector('[data-dock-target="tools-panel"]'),p=document.querySelector('[data-dock-target="properties-panel"]');if(t&&['left','bottom'].includes(saved.tools))t.value=saved.tools;if(p&&['right','bottom'].includes(saved.properties))p.value=saved.properties;}}catch(_){}
+  selects.forEach(el=>el.addEventListener('change',apply));apply();
+  ['snap-endpoint','snap-midpoint','snap-center','snap-face'].forEach(id=>document.getElementById(id)?.addEventListener('change',()=>{const any=['snap-endpoint','snap-midpoint','snap-center','snap-face'].some(k=>document.getElementById(k).checked);document.getElementById('snap-status').textContent=any?'ON':'OFF';if(!any)document.getElementById('snap-marker').style.display='none';}));
+}
+
 function initUiCustomization() {
   try {
     const stored = JSON.parse(localStorage.getItem('vcad-ui-settings') || 'null');
@@ -1845,7 +1929,7 @@ function initAdvancedTools(){
   });
   document.getElementById('layer-create-cancel')?.addEventListener('click',()=>createPanel?.classList.add('hidden'));
   nameInput?.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('layer-create-confirm')?.click();if(e.key==='Escape')createPanel?.classList.add('hidden');});
-  document.getElementById('btn-ortho')?.addEventListener('click',e=>{orthoEnabled=!orthoEnabled;e.currentTarget.textContent=`Ortho: ${orthoEnabled?'ON':'OFF'}`;e.currentTarget.classList.toggle('active',orthoEnabled);setStatus(`Ortho ${orthoEnabled?'ON':'OFF'}`);setStatus(`Ortho ${orthoEnabled?'bật':'tắt'}; giữ Shift cũng khóa phương.`);});
+  document.getElementById('btn-ortho')?.addEventListener('click',e=>{orthoEnabled=!orthoEnabled;e.currentTarget.textContent=`Ortho: ${orthoEnabled?'ON':'OFF'}`;e.currentTarget.classList.toggle('active',orthoEnabled);setStatus(`Ortho ${orthoEnabled?'ON':'OFF'} — ${orthoEnabled?'Move và vẽ khóa theo trục; giữ Shift để khóa tạm thời.':'giữ Shift để khóa trục tạm thời.'}`);});
   document.getElementById('btn-gumball')?.addEventListener('click',e=>{gumballEnabled=!gumballEnabled;gumballGroup.visible=gumballEnabled&&!!selectedObject;e.currentTarget.textContent=`Gumball: ${gumballEnabled?'ON':'OFF'}`;e.currentTarget.classList.toggle('active',gumballEnabled);});
   document.getElementById('btn-group')?.addEventListener('click',groupSelected);
   document.getElementById('btn-ungroup')?.addEventListener('click',ungroupSelected);
