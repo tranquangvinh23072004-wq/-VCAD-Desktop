@@ -8,8 +8,8 @@
 <script src="./vendor/tailwindcss.js"></script>
 <link rel="stylesheet" href="./vendor/fontawesome/css/all.min.css">
 <!-- Three.js & OrbitControls -->
-<script src="./vendor/three.min.js"></script>
-<script src="./vendor/OrbitControls.js"></script>
+<script src="./vendor/three.min.js" onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'"></script>
+<script src="./vendor/OrbitControls.js" onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js'"></script>
 <style>
   body { background: #1e1f26; color: #d4d7de; font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; overflow: hidden; }
   /* Custom scrollbars */
@@ -22,7 +22,7 @@
   /* Requested cleanup: hide the five legacy export/boolean buttons from the compact sidebar. */
   div:has(> #btn-export-dxf), div:has(> #btn-bool-union) { display:none !important; }
   /* Dock layout controls: panels can be resized; bottom-dock is toggled per panel. */
-  #app-body { display:grid; grid-template-columns: minmax(190px, 230px) minmax(300px,1fr) minmax(210px,260px); grid-template-rows:minmax(0,1fr); grid-template-areas:"tools stage props"; }
+  #app-body { --tools-width:230px; --props-width:260px; display:grid; grid-template-columns: minmax(190px,var(--tools-width)) minmax(300px,1fr) minmax(210px,var(--props-width)); grid-template-rows:minmax(0,1fr); grid-template-areas:"tools stage props"; }
   #tools-panel { grid-area:tools; min-width:190px; max-width:42vw; resize:horizontal; }
   #stage-panel { grid-area:stage; min-width:0; }
   #properties-panel { grid-area:props; min-width:210px; max-width:42vw; resize:horizontal; }
@@ -69,10 +69,10 @@
     </div>
     <div class="flex items-center gap-1 text-xs">
       <button id="btn-new" class="rhino-btn px-2 py-1 rounded" title="Cảnh mới"><i class="fa-solid fa-file-circle-plus"></i> Mới</button>
-      <button id="btn-open" class="rhino-btn px-2 py-1 rounded" title="Mở bản vẽ VC@D dạng JSON (thay bản vẽ hiện tại)"><i class="fa-solid fa-folder-open"></i> Mở</button>
+      <button id="btn-open" class="rhino-btn px-2 py-1 rounded" title="Mở bản vẽ DXF (thay bản vẽ hiện tại)"><i class="fa-solid fa-folder-open"></i> Mở</button>
       <button id="btn-import-dxf" class="rhino-btn px-2 py-1 rounded" title="Mở bản vẽ DXF. Với DWG, hãy lưu/chuyển sang DXF trước"><i class="fa-solid fa-file-import"></i> Mở DXF</button>
       <button id="btn-import-append" class="rhino-btn px-2 py-1 rounded" title="Nhập thêm đối tượng từ JSON vào bản vẽ hiện tại"><i class="fa-solid fa-file-import"></i> Nhập thêm</button>
-      <button id="btn-save" class="rhino-btn px-2 py-1 rounded" title="Lưu bản vẽ JSON"><i class="fa-solid fa-floppy-disk"></i> Lưu</button>
+      <button id="btn-save" class="rhino-btn px-2 py-1 rounded" title="Lưu bản vẽ dạng DXF"><i class="fa-solid fa-floppy-disk"></i> Lưu</button>
       <button id="btn-ui-options" class="rhino-btn px-2 py-1 rounded" title="Tùy chỉnh giao diện và tên bản vẽ"><i class="fa-solid fa-palette"></i> Giao diện</button>
       <button id="btn-check-updates" class="rhino-btn px-2 py-1 rounded" title="Kiểm tra cập nhật VC@D"><i class="fa-solid fa-cloud-arrow-down"></i> Cập nhật</button>
       <input id="file-input" type="file" accept=".json" class="hidden">
@@ -125,6 +125,7 @@
         <button data-draw="polyline" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-chart-line text-emerald-400"></i> Polyline</button>
         <button data-draw="rectangle" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-regular fa-square text-green-400"></i> Rectangle</button>
         <button data-draw="circle" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-regular fa-circle text-pink-400"></i> Circle</button>
+        <button data-draw="arc" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-bezier-curve text-amber-300"></i> Arc (3 điểm)</button>
       </div>
       <div class="mt-2 grid grid-cols-3 gap-1.5">
         <label class="text-[10px] text-gray-400">Dài <input id="dim-length" type="number" value="2" step="0.1" class="rhino-input w-full mt-1"></label>
@@ -317,7 +318,7 @@
 
 <!-- STATUS BAR -->
 <footer class="h-6 bg-[#181920] border-t border-[#323642] px-3 flex items-center justify-between text-[11px] text-gray-400">
-  <div id="status-text" class="truncate">Sẵn sàng. Chào mừng bạn đến với VC@D.</div>
+  <div class="min-w-0 flex-1 flex items-center gap-2"><div id="status-text" class="truncate">Sẵn sàng. Chào mừng bạn đến với VC@D.</div><div id="update-progress-wrap" class="hidden items-center gap-2 min-w-[180px] max-w-[280px]"><div class="flex-1 h-1.5 rounded bg-gray-700 overflow-hidden"><div id="update-progress-fill" class="h-full bg-emerald-400" style="width:0%"></div></div><span id="update-progress-label" class="whitespace-nowrap">0%</span></div></div>
   <div class="flex items-center gap-4">
     <span id="coords-display">X: 0.0 Y: 0.0 Z: 0.0</span>
     <span id="units-display">Đơn vị: Mét (m)</span>
@@ -429,7 +430,7 @@ const AVAILABLE_COMMANDS = [
   { cmd: 'torus', desc: 'Tạo vành khuyên 3D' },
   { cmd: 'plane', desc: 'Tạo mặt phẳng 3D' },
   { cmd: 'line', desc: 'Vẽ đường thẳng 2D' },
-  { cmd: 'arc', desc: 'Vẽ cung qua 3 điểm' },
+  { cmd: 'arc', desc: 'Vẽ cung tròn qua 3 điểm' },
   { cmd: 'dim', desc: 'Ghi kích thước giữa 2 điểm' },
   { cmd: 'polyline', desc: 'Vẽ đa tuyến 2D' },
   { cmd: 'rectangle / rec', desc: 'Vẽ hình chữ nhật 2D: dài, rộng' },
@@ -666,6 +667,20 @@ function createObject(type, options = {}) {
 }
 
 
+function duplicateObjectFrom(base, name, position, rotation) {
+  // Clone the actual geometry rather than recreating by primitive type; this keeps Line/Polyline/Arc/Circle shapes intact.
+  const mesh=base.mesh.clone(true);
+  if(base.mesh.geometry) mesh.geometry=base.mesh.geometry.clone();
+  if(base.mesh.material) mesh.material=Array.isArray(base.mesh.material)?base.mesh.material.map(m=>m.clone()):base.mesh.material.clone();
+  mesh.position.copy(position || base.mesh.position);
+  if(rotation) mesh.rotation.set(rotation[0],rotation[1],rotation[2]);
+  mesh.scale.copy(base.mesh.scale);
+  const obj={id:objectIdCounter++,name:name||`${base.name}_Copy`,type:base.type,mesh,layerId:base.layerId,color:base.color,shapePoints:base.shapePoints?base.shapePoints.map(p=>[...p]):null,closed:!!base.closed,dxfLayer:base.dxfLayer||null,dxfClosed:!!base.dxfClosed};
+  mesh.userData={...(mesh.userData||{}),objData:obj,shapePoints:obj.shapePoints,closed:obj.closed};
+  scene.add(mesh);objects.push(obj);selectObject(obj);updateObjectsList();return obj;
+}
+
+
 function refreshProperties() {
   if (!selectedObject) return;
   const m=selectedObject.mesh;
@@ -708,15 +723,15 @@ function finishDraw() {
     const a=pts[0],b=pts[pts.length-1];
     shapePoints=[[a.x,a.y],[b.x,a.y],[b.x,b.y],[a.x,b.y]];closed=true;
     const sh=new THREE.Shape(); sh.moveTo(a.x,a.y);sh.lineTo(b.x,a.y);sh.lineTo(b.x,b.y);sh.lineTo(a.x,b.y);sh.closePath();
-    mesh=new THREE.Mesh(new THREE.ShapeGeometry(sh),new THREE.MeshStandardMaterial({color:'#5c7cfa',side:THREE.DoubleSide,transparent:true,opacity:.55}));
+    mesh=new THREE.Mesh(new THREE.ShapeGeometry(sh, 128),new THREE.MeshStandardMaterial({color:'#5c7cfa',side:THREE.DoubleSide,transparent:true,opacity:.55}));
     mesh.position.z=0.005;
   } else if(mode==='circle') {
     if(pts.length<2){setStatus('Circle cần tâm và điểm bán kính.');return;}
     const a=pts[0],b=pts[pts.length-1],r=Math.hypot(b.x-a.x,b.y-a.y);
     if(r<1e-5){setStatus('Bán kính phải lớn hơn 0.');return;}
     const sh=new THREE.Shape();sh.absarc(a.x,a.y,r,0,Math.PI*2,false);
-    mesh=new THREE.Mesh(new THREE.ShapeGeometry(sh),new THREE.MeshStandardMaterial({color:'#5c7cfa',side:THREE.DoubleSide,transparent:true,opacity:.55}));
-    shapePoints=Array.from({length:64},(_,i)=>[a.x+r*Math.cos(i*Math.PI/32),a.y+r*Math.sin(i*Math.PI/32)]);closed=true;mesh.position.z=.005;
+    mesh=new THREE.Mesh(new THREE.ShapeGeometry(sh, 128),new THREE.MeshStandardMaterial({color:'#5c7cfa',side:THREE.DoubleSide,transparent:true,opacity:.55}));
+    shapePoints=Array.from({length:256},(_,i)=>[a.x+r*Math.cos(i*Math.PI/128),a.y+r*Math.sin(i*Math.PI/128)]);closed=true;mesh.position.z=.005;
   } else {
     const linePts=pts.map(p=>new THREE.Vector3(p.x,p.y,(mode==='line'||mode==='polyline')?p.z+0.01:0.01));
     const geom=new THREE.BufferGeometry().setFromPoints(linePts);
@@ -1154,37 +1169,13 @@ function setupEvents() {
     });
   };
 
+  // Save/Open use DXF by default so the normal CAD workflow stays interoperable.
   document.getElementById('btn-save').onclick = () => {
-    const saveData = {
-      app: 'VC@D',
-      version: 1.1,
-      drawingName,
-      objects: objects.map(o => ({
-        name: o.name,
-        type: o.type,
-        pos: [o.mesh.position.x, o.mesh.position.y, o.mesh.position.z],
-        rot: [o.mesh.rotation.x, o.mesh.rotation.y, o.mesh.rotation.z],
-        scale: [o.mesh.scale.x, o.mesh.scale.y, o.mesh.scale.z],
-        color: o.color,
-        layerId: o.layerId,
-        dxfLayer: o.dxfLayer || null,
-        dxfClosed: !!o.dxfClosed,
-        dxfPoints: String(o.type || '').startsWith('dxf-') && o.mesh.geometry?.attributes?.position
-          ? Array.from({ length: o.mesh.geometry.attributes.position.count }, (_, i) => { const p = o.mesh.geometry.attributes.position; return [p.getX(i), p.getY(i), p.getZ(i)]; })
-          : null
-      }))
-    };
-    const blob = new Blob([JSON.stringify(saveData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${sanitizeDrawingFilename(drawingName)}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setStatus('Đã xuất file JSON thành công.');
+    exportDXF();
+    setStatus('Đã xuất bản vẽ DXF. Lưu ý: DXF chỉ giữ các entity được bộ xuất hiện tại hỗ trợ.');
   };
 
-  document.getElementById('btn-open').onclick = () => document.getElementById('file-input').click();
+  document.getElementById('btn-open').onclick = () => document.getElementById('file-dxf-input').click();
   document.getElementById('btn-import-append').onclick = () => document.getElementById('file-append-input').click();
   document.getElementById('file-append-input').onchange = (e) => { const file=e.target.files&&e.target.files[0]; if(!file)return; const reader=new FileReader(); reader.onload=(ev)=>{try{const data=JSON.parse(ev.target.result);if(!Array.isArray(data.objects))throw new Error('File không có danh sách objects');data.objects.forEach((item,index)=>restoreSerializedObject(item,index+1));setStatus(`Đã nhập thêm ${data.objects.length} đối tượng.`);}catch(err){showModal('Không thể nhập file',err.message||'File JSON không hợp lệ.');}finally{e.target.value='';}};reader.readAsText(file); };
   document.getElementById('file-input').onchange = (e) => {
@@ -1415,16 +1406,41 @@ function executeCommand(rawCmd) {
     case 'delete':if(selectedObject)document.getElementById('btn-delete').click();else showModal('DELETE','Chọn đối tượng trước.');break;
     case 'mirror':{
       if(!selectedObject){showModal('MIRROR','Chọn đối tượng cần đối xứng.');return;}
-      commandModal('MIRROR','Nhập trục đối xứng X, Y hoặc Z.','X',val=>{
+      commandModal('MIRROR','Nhập mặt phẳng đối xứng: X hoặc X,tọa độ (ví dụ X,0); tương tự Y hoặc Z.','X,0',val=>{
         if(val===null||val===true)return;
-        const axis=String(val).trim().toUpperCase(),o=selectedObject,p=o.mesh.position.clone();
-        if(!['X','Y','Z'].includes(axis)){showModal('MIRROR','Trục hợp lệ: X, Y hoặc Z.');return;}
-        if(axis==='X')p.x=-p.x;else if(axis==='Y')p.y=-p.y;else p.z=-p.z;
-        createObject(o.type,{name:o.name+'_Mirror',pos:p.toArray(),rot:[o.mesh.rotation.x,o.mesh.rotation.y,o.mesh.rotation.z],scale:[o.mesh.scale.x,o.mesh.scale.y,o.mesh.scale.z],color:o.color});
-        setStatus(`MIRROR: đã tạo bản sao đối xứng qua mặt phẳng vuông góc trục ${axis}.`);
+        const parts=String(val).trim().toUpperCase().split(/[\s,;]+/).filter(Boolean),axis=parts[0],o=selectedObject,p=o.mesh.position.clone();
+        if(!['X','Y','Z'].includes(axis)){showModal('MIRROR','Nhập X, Y hoặc Z và tùy chọn tọa độ mặt phẳng. Ví dụ: X,0');return;}
+        const plane=parts.length>1?Number(parts[1]):0;if(!Number.isFinite(plane)){showModal('MIRROR','Tọa độ mặt phẳng phải là số.');return;}
+        if(axis==='X')p.x=2*plane-p.x;else if(axis==='Y')p.y=2*plane-p.y;else p.z=2*plane-p.z;
+        const rot=[o.mesh.rotation.x,o.mesh.rotation.y,o.mesh.rotation.z];if(axis==='X'){rot[1]=-rot[1];rot[2]=-rot[2];}else if(axis==='Y'){rot[0]=-rot[0];rot[2]=-rot[2];}else{rot[0]=-rot[0];rot[1]=-rot[1];}
+        duplicateObjectFrom(o,o.name+'_Mirror',p,rot);
+        setStatus(`MIRROR: đã tạo bản sao qua mặt phẳng ${axis}=${plane}. (Bản này phản chiếu đối tượng theo tọa độ/rotation; kiểm tra lại hình phức tạp trước khi dùng sản xuất.)`);
       });break;
     }
-    case 'array':if(!selectedObject){showModal('ARRAY','Chọn đối tượng trước.');return;}ask('ARRAY','Nhập số bản sao và khoảng cách X: số lượng, khoảng cách','3,3',v=>{const base=selectedObject;for(let i=1;i<Math.max(1,v[0]);i++)createObject(base.type,{name:base.name+'_Array'+i,pos:[base.mesh.position.x+i*(v[1]||3),base.mesh.position.y,base.mesh.position.z],scale:[base.mesh.scale.x,base.mesh.scale.y,base.mesh.scale.z],color:base.color});});break;
+    case 'array': {
+      if(!selectedObject){showModal('ARRAY','Chọn đối tượng trước.');break;}
+      commandModal('ARRAY','Chọn kiểu mảng: nhập R cho mảng chữ nhật hoặc P cho mảng cực (cung tròn).','R',modeVal=>{
+        if(modeVal===null||modeVal===true)return;
+        const mode=String(modeVal).trim().toUpperCase();
+        if(mode==='P'){
+          commandModal('POLAR ARRAY','Nhập số lượng tổng, góc tổng (độ), tâm X, tâm Y. Ví dụ: 6,360,0,0','6,360,0,0',raw=>{
+            if(raw===null||raw===true)return;const v=String(raw).split(/[\s,;]+/).filter(Boolean).map(Number);
+            if(v.length<4||v.some(n=>!Number.isFinite(n))||v[0]<2){showModal('POLAR ARRAY','Cần nhập: số lượng (>=2), góc tổng, tâm X, tâm Y.');return;}
+            const base=selectedObject, count=Math.floor(v[0]), sweep=THREE.MathUtils.degToRad(v[1]),cx=v[2],cy=v[3],start=base.mesh.position.clone();
+            for(let i=1;i<count;i++){const a=sweep*i/count,dx=start.x-cx,dy=start.y-cy;duplicateObjectFrom(base,base.name+'_Polar'+i,new THREE.Vector3(cx+dx*Math.cos(a)-dy*Math.sin(a),cy+dx*Math.sin(a)+dy*Math.cos(a),start.z),[base.mesh.rotation.x,base.mesh.rotation.y,base.mesh.rotation.z+a]);}
+            setStatus(`POLAR ARRAY: đã tạo mảng ${count} vị trí.`);
+          });
+        } else {
+          commandModal('RECTANGULAR ARRAY','Nhập số cột, số hàng, khoảng cách X, khoảng cách Y. Ví dụ: 3,2,3,3','3,2,3,3',raw=>{
+            if(raw===null||raw===true)return;const v=String(raw).split(/[\s,;]+/).filter(Boolean).map(Number);
+            if(v.length<4||v.some(n=>!Number.isFinite(n))||v[0]<1||v[1]<1){showModal('ARRAY','Cần nhập cột, hàng, khoảng cách X, khoảng cách Y.');return;}
+            const base=selectedObject,cols=Math.floor(v[0]),rows=Math.floor(v[1]),dx=v[2],dy=v[3],p=base.mesh.position;
+            let n=1;for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){if(!row&&!col)continue;duplicateObjectFrom(base,base.name+'_Array'+n++,new THREE.Vector3(p.x+col*dx,p.y+row*dy,p.z),[base.mesh.rotation.x,base.mesh.rotation.y,base.mesh.rotation.z]);}
+            setStatus(`ARRAY: đã tạo mảng chữ nhật ${cols} × ${rows}.`);
+          });
+        }
+      });break;
+    }
     case 'help':showModal('Lệnh CAD','BOX L,W,H · REC L,W · LINE L · ARC (3 điểm) · DIM 10 · C R · PL · EXTRUDE H · MOVE dx dy dz · ROTATE 45 Z · SCALE 2 · ORTHO · IMPORT · DELETE. UNION gộp khối, DIFFERENCE trừ khối, INTERSECTION giữ phần giao nhau; phép Boolean hình học chưa được triển khai trong bản này.');break;
     default:showModal('Không nhận diện lệnh',`Không tìm thấy "${rawCmd}". Thử BOX, REC, LINE, C, CR, CD, PL, EXTRUDE, MIRROR hoặc HELP.`);
   }
@@ -1451,7 +1467,7 @@ function createLineByLength(length){
 function createRectangleBySize(length,width){
   if(!(length>0&&width>0)){showModal('REC','Dài và rộng phải lớn hơn 0.');return;}
   const sh=new THREE.Shape();sh.moveTo(0,0);sh.lineTo(length,0);sh.lineTo(length,width);sh.lineTo(0,width);sh.closePath();
-  const mesh=new THREE.Mesh(new THREE.ShapeGeometry(sh),new THREE.MeshStandardMaterial({color:'#5c7cfa',side:THREE.DoubleSide,transparent:true,opacity:.55}));
+  const mesh=new THREE.Mesh(new THREE.ShapeGeometry(sh, 128),new THREE.MeshStandardMaterial({color:'#5c7cfa',side:THREE.DoubleSide,transparent:true,opacity:.55}));
   mesh.position.z=.005;
   const obj={id:objectIdCounter++,name:`Rectangle_${String(objectIdCounter).padStart(2,'0')}`,type:'rectangle',mesh,layerId:currentLayerId,color:'#5c7cfa',shapePoints:[[0,0],[length,0],[length,width],[0,width]],closed:true};
   mesh.userData={objData:obj};scene.add(mesh);objects.push(obj);selectObject(obj);updateObjectsList();setStatus(`REC: dài ${length} m, rộng ${width} m.`);
@@ -1459,7 +1475,7 @@ function createRectangleBySize(length,width){
 function createCircleByRadius(radius){
   if(!(radius>0)){showModal('CIRCLE','Bán kính phải lớn hơn 0.');return;}
   const sh=new THREE.Shape();sh.absarc(0,0,radius,0,Math.PI*2,false);
-  const mesh=new THREE.Mesh(new THREE.ShapeGeometry(sh),new THREE.MeshStandardMaterial({color:'#5c7cfa',side:THREE.DoubleSide,transparent:true,opacity:.55}));
+  const mesh=new THREE.Mesh(new THREE.ShapeGeometry(sh, 128),new THREE.MeshStandardMaterial({color:'#5c7cfa',side:THREE.DoubleSide,transparent:true,opacity:.55}));
   mesh.position.z=.005;
   const shapePoints=Array.from({length:64},(_,i)=>[radius*Math.cos(i*Math.PI/32),radius*Math.sin(i*Math.PI/32)]);
   const obj={id:objectIdCounter++,name:`Circle_${String(objectIdCounter).padStart(2,'0')}`,type:'circle',mesh,layerId:currentLayerId,color:'#5c7cfa',shapePoints,closed:true};
@@ -1605,6 +1621,12 @@ function initDockLayout(){
   };
   try{const saved=JSON.parse(localStorage.getItem('vcad-dock-layout')||'null');if(saved){const t=document.querySelector('[data-dock-target="tools-panel"]'),p=document.querySelector('[data-dock-target="properties-panel"]');if(t&&['left','bottom'].includes(saved.tools))t.value=saved.tools;if(p&&['right','bottom'].includes(saved.properties))p.value=saved.properties;}}catch(_){}
   selects.forEach(el=>el.addEventListener('change',apply));apply();
+  // Real grid-track resizing (CSS resize alone does not resize a CSS Grid track).
+  const bodyEl=document.getElementById('app-body');
+  const toolsPanel=document.getElementById('tools-panel'),propsPanel=document.getElementById('properties-panel');
+  const addGrip=(panel,side)=>{const grip=document.createElement('div');grip.className='vcad-resize-grip';grip.style.cssText=`position:absolute;${side==='right'?'right:0;top:0;width:5px;height:100%;cursor:col-resize;':'left:0;top:0;width:5px;height:100%;cursor:col-resize;'}z-index:30;background:transparent`;panel.style.position='relative';panel.appendChild(grip);grip.addEventListener('pointerdown',e=>{if(panel.classList.contains('docked-bottom'))return;e.preventDefault();grip.setPointerCapture(e.pointerId);const startX=e.clientX,computed=getComputedStyle(bodyEl),start=side==='right'?parseFloat(computed.getPropertyValue('--tools-width'))||230:parseFloat(computed.getPropertyValue('--props-width'))||260;const move=ev=>{const delta=ev.clientX-startX;const val=Math.max(side==='right'?190:210,Math.min(window.innerWidth*.42,start+(side==='right'?delta:-delta)));bodyEl.style.setProperty(side==='right'?'--tools-width':'--props-width',val+'px');onWindowResize();};const end=()=>{grip.removeEventListener('pointermove',move);grip.removeEventListener('pointerup',end);try{localStorage.setItem('vcad-panel-widths',JSON.stringify({tools:bodyEl.style.getPropertyValue('--tools-width'),props:bodyEl.style.getPropertyValue('--props-width')}));}catch(_){}};grip.addEventListener('pointermove',move);grip.addEventListener('pointerup',end);});};
+  addGrip(toolsPanel,'right');addGrip(propsPanel,'left');
+  try{const w=JSON.parse(localStorage.getItem('vcad-panel-widths')||'null');if(w?.tools)bodyEl.style.setProperty('--tools-width',w.tools);if(w?.props)bodyEl.style.setProperty('--props-width',w.props);}catch(_){}
   ['snap-endpoint','snap-midpoint','snap-center','snap-face'].forEach(id=>document.getElementById(id)?.addEventListener('change',()=>{const any=['snap-endpoint','snap-midpoint','snap-center','snap-face'].some(k=>document.getElementById(k).checked);document.getElementById('snap-status').textContent=any?'ON':'OFF';if(!any)document.getElementById('snap-marker').style.display='none';}));
 }
 
@@ -1897,11 +1919,24 @@ function exportOBJ(){
 }
 function makeArcFromPoints(points){
   if(points.length<3){showModal('ARC','Cung cần 3 điểm: đầu, điểm giữa, cuối.');return;}
-  const curve=new THREE.QuadraticBezierCurve3(points[0],points[1],points[2]);
-  const pts=curve.getPoints(48),geom=new THREE.BufferGeometry().setFromPoints(pts);
+  const a=points[0],b=points[1],c=points[2];
+  const d=2*(a.x*(b.y-c.y)+b.x*(c.y-a.y)+c.x*(a.y-b.y));
+  if(Math.abs(d)<1e-8){showModal('ARC','Ba điểm gần thẳng hàng; không thể tạo cung tròn.');return;}
+  const aa=a.x*a.x+a.y*a.y,bb=b.x*b.x+b.y*b.y,cc=c.x*c.x+c.y*c.y;
+  const cx=(aa*(b.y-c.y)+bb*(c.y-a.y)+cc*(a.y-b.y))/d;
+  const cy=(aa*(c.x-b.x)+bb*(a.x-c.x)+cc*(b.x-a.x))/d;
+  const radius=Math.hypot(a.x-cx,a.y-cy);
+  const ang=p=>Math.atan2(p.y-cy,p.x-cx);
+  const a0=ang(a),am=ang(b),a1=ang(c),tau=Math.PI*2;
+  const ccw=x=>((x%tau)+tau)%tau;
+  let sweep=ccw(a1-a0),mid=ccw(am-a0);
+  if(mid>sweep)sweep-=tau;
+  const segments=Math.max(32,Math.ceil(Math.abs(sweep)*radius*8));
+  const pts=Array.from({length:Math.min(512,segments)+1},(_,i)=>{const t=i/Math.min(512,segments),angNow=a0+sweep*t;return new THREE.Vector3(cx+radius*Math.cos(angNow),cy+radius*Math.sin(angNow),a.z);});
+  const geom=new THREE.BufferGeometry().setFromPoints(pts);
   const mesh=new THREE.Line(geom,new THREE.LineBasicMaterial({color:'#5c7cfa'}));
-  const obj={id:objectIdCounter++,name:`Arc_${String(objectIdCounter).padStart(2,'0')}`,type:'arc',mesh,layerId:currentLayerId,color:'#5c7cfa',closed:false,shapePoints:pts.map(p=>[p.x,p.y])};
-  mesh.userData={objData:obj};scene.add(mesh);objects.push(obj);selectObject(obj);updateObjectsList();setStatus('Đã tạo cung ARC qua 3 điểm.');
+  const obj={id:objectIdCounter++,name:`Arc_${String(objectIdCounter).padStart(2,'0')}`,type:'arc',mesh,layerId:currentLayerId,color:'#5c7cfa',closed:false,shapePoints:pts.map(p=>[p.x,p.y,p.z])};
+  mesh.userData={objData:obj};scene.add(mesh);objects.push(obj);selectObject(obj);updateObjectsList();setStatus('Đã tạo cung tròn ARC chính xác qua 3 điểm.');
 }
 window.createVCADLayer = createLayer;
 function initAdvancedTools(){
@@ -1963,28 +1998,47 @@ function animate() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  const updateButton = document.getElementById('btn-check-updates');
-  if (updateButton) updateButton.addEventListener('click', async () => {
-    updateButton.disabled = true;
-    const oldText = updateButton.innerHTML;
-    updateButton.textContent = 'Đang kiểm tra...';
-    try {
-      if (!window.vcadUpdater || typeof window.vcadUpdater.check !== 'function') {
-        alert('Tính năng cập nhật chỉ có trong bản VC@D Desktop đã cài.');
-        return;
-      }
-      const result = await window.vcadUpdater.check();
-      if (result && result.error) alert('Không kiểm tra được cập nhật: ' + result.error);
-    } catch (e) {
-      alert('Không kiểm tra được cập nhật: ' + (e && e.message ? e.message : e));
-    } finally {
-      updateButton.disabled = false;
-      updateButton.innerHTML = oldText;
-    }
+  const updateButton=document.getElementById('btn-check-updates');
+  const wrap=document.getElementById('update-progress-wrap'),fill=document.getElementById('update-progress-fill'),label=document.getElementById('update-progress-label');
+  const setUpdateUI=(message,percent=null,show=true)=>{
+    if(message)setStatus(message);
+    if(wrap){wrap.classList.toggle('hidden',!show);wrap.classList.toggle('flex',show);}
+    if(percent!==null&&fill&&label){const p=Math.max(0,Math.min(100,Number(percent)||0));fill.style.width=p+'%';label.textContent=Math.round(p)+'%';}
+  };
+  if(updateButton)updateButton.addEventListener('click',async()=>{
+    const old=updateButton.innerHTML;updateButton.disabled=true;updateButton.textContent='Đang kiểm tra...';setUpdateUI('Đang kiểm tra bản cập nhật GitHub…',0,true);
+    try{
+      if(!window.vcadUpdater||typeof window.vcadUpdater.check!=='function'){setUpdateUI('Không có trình cập nhật trong bản chạy hiện tại.',null,false);showModal('Không hỗ trợ cập nhật','Hãy chạy bản VC@D Desktop đã cài bằng bộ cài GitHub Release.');return;}
+      const result=await window.vcadUpdater.check();
+      if(result&&result.error){setUpdateUI('Lỗi cập nhật: '+result.error,null,true);showModal('Không kiểm tra được cập nhật',result.error);}
+      else if(result&&result.reason==='checking'){setUpdateUI('Đang kiểm tra/tải cập nhật ở chế độ nền…',null,true);}
+      else setUpdateUI('Đã gửi yêu cầu kiểm tra. Trạng thái sẽ hiển thị tại đây.',null,true);
+    }catch(e){const msg=e&&e.message?e.message:String(e);setUpdateUI('Lỗi cập nhật: '+msg,null,true);showModal('Không kiểm tra được cập nhật',msg);}
+    finally{updateButton.disabled=false;updateButton.innerHTML=old;}
   });
+  if(window.vcadUpdater&&typeof window.vcadUpdater.onProgress==='function'){
+    window.vcadUpdater.onProgress(ev=>{
+      if(!ev)return;
+      if(ev.event==='checking-for-update')setUpdateUI('Đang kiểm tra phiên bản mới…',0,true);
+      else if(ev.event==='update-available')setUpdateUI(`Đã tìm thấy v${ev.version||'mới'}; đang tải…`,0,true);
+      else if(ev.event==='download-progress')setUpdateUI(`Đang tải bản cập nhật: ${Math.round(ev.percent||0)}%`,ev.percent||0,true);
+      else if(ev.event==='update-not-available')setUpdateUI('Đang dùng phiên bản mới nhất.',100,true);
+      else if(ev.event==='update-downloaded')setUpdateUI('Tải xong bản cập nhật; chờ xác nhận khởi động lại.',100,true);
+      else if(ev.event==='error')setUpdateUI('Lỗi cập nhật: '+(ev.message||'không rõ nguyên nhân'),null,true);
+    });
+  }
 });
 window.onload = init;
 </script>
 
+
+<script>
+window.addEventListener('error', function(ev){
+  const msg=String(ev.message||'Lỗi JavaScript không xác định');
+  let box=document.getElementById('vcad-fatal-error');
+  if(!box){box=document.createElement('div');box.id='vcad-fatal-error';box.style.cssText='position:fixed;inset:12px 12px auto 12px;z-index:10000;background:#5b1d1d;color:#fff;border:1px solid #ff6b6b;padding:12px;border-radius:8px;font:13px Segoe UI,sans-serif;white-space:pre-wrap';document.body.appendChild(box);}
+  box.textContent='VC@D không khởi tạo được. Hãy chụp màn hình thông báo này để sửa lỗi.\n'+msg;
+});
+</script>
 </body>
 </html>
