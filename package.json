@@ -1,6 +1,6 @@
 {
   "name": "vcad-desktop",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "VC@D Desktop CAD with in-app update support",
   "main": "main.js",
   "author": "VCAD",
@@ -20,10 +20,24 @@
   "build": {
     "appId": "vn.vcad.desktop",
     "productName": "VC@D",
-    "directories": { "output": "dist" },
-    "files": ["main.js", "preload.js", "app/**/*", "package.json"],
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "app/**/*",
+      "package.json"
+    ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "artifactName": "VCAD-Setup-${version}.${ext}"
     },
     "nsis": {
@@ -32,7 +46,13 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     },
-    "publish": [{ "provider": "github", "owner": "tranquangvinh23072004-wq", "repo": "-VCAD-Desktop" }]
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "tranquangvinh23072004-wq",
+        "repo": "-VCAD-Desktop"
+      }
+    ]
   },
   "repository": {
     "type": "git",
