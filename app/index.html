@@ -1,0 +1,1906 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VC@D</title>
+<!-- Tailwind CSS & FontAwesome -->
+<script src="./vendor/tailwindcss.js"></script>
+<link rel="stylesheet" href="./vendor/fontawesome/css/all.min.css">
+<!-- Three.js & OrbitControls -->
+<script src="./vendor/three.min.js"></script>
+<script src="./vendor/OrbitControls.js"></script>
+<style>
+  body { background: #1e1f26; color: #d4d7de; font-family: 'Segoe UI', system-ui, sans-serif; user-select: none; overflow: hidden; }
+  /* Custom scrollbars */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #181920; }
+  ::-webkit-scrollbar-thumb { background: #3b4252; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #4c566a; }
+  
+  .rhino-panel { background: #242730; border-color: #323642; }
+  .rhino-input { background: #181920; border: 1px solid #383e4c; color: #e5e9f0; border-radius: 4px; padding: 4px 8px; }
+  .rhino-input:focus { border-color: #5c7cfa; outline: none; }
+  .rhino-btn { background: #2e3340; border: 1px solid #3e4452; transition: all 0.15s; }
+  .rhino-btn:hover { background: #3b4252; border-color: #5c7cfa; color: #fff; }
+  .rhino-btn.active { background: #3b5bdb; border-color: #748ffc; color: #fff; }
+  
+  /* Autocomplete Dropdown */
+  #autocomplete-list { position: absolute; bottom: 44px; left: 12px; right: 12px; background: #181920; border: 1px solid #383e4c; border-radius: 4px; max-height: 150px; overflow-y: auto; z-index: 50; display: none; }
+  .autocomplete-item { padding: 6px 10px; cursor: pointer; font-size: 12px; color: #abb2bf; display: flex; justify-content: space-between; }
+  .autocomplete-item:hover, .autocomplete-item.selected { background: #2e3856; color: #fff; }
+
+  /* Modal Overlay */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(2px); }
+
+  [hidden] { display: none !important; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body class="h-screen flex flex-col">
+
+<!-- TOP HEADER -->
+<header id="top-menubar" class="h-11 bg-[#181920] border-b border-[#323642] flex items-center px-3 gap-3 justify-between">
+  <div class="flex items-center gap-3">
+    <div class="font-bold text-sm tracking-wide text-indigo-400 flex items-center gap-2">
+      <i class="fa-solid fa-cube text-indigo-500"></i> VC@D
+    </div>
+    <div class="h-4 w-[1px] bg-[#383e4c]"></div>
+    <div id="drawing-title-wrap" class="flex items-center gap-1.5 max-w-[150px] min-w-[90px] text-xs text-gray-300" title="Tên bản vẽ hiện tại">
+      <i class="fa-regular fa-file-lines text-indigo-300"></i>
+      <span id="drawing-name-display" class="truncate">Bản vẽ mới</span>
+    </div>
+    <div class="flex items-center gap-1 text-xs">
+      <button id="btn-new" class="rhino-btn px-2 py-1 rounded" title="Cảnh mới"><i class="fa-solid fa-file-circle-plus"></i> Mới</button>
+      <button id="btn-open" class="rhino-btn px-2 py-1 rounded" title="Mở bản vẽ VC@D dạng JSON (thay bản vẽ hiện tại)"><i class="fa-solid fa-folder-open"></i> Mở</button>
+      <button id="btn-import-dxf" class="rhino-btn px-2 py-1 rounded" title="Mở bản vẽ DXF. Với DWG, hãy lưu/chuyển sang DXF trước"><i class="fa-solid fa-file-import"></i> Mở DXF</button>
+      <button id="btn-import-append" class="rhino-btn px-2 py-1 rounded" title="Nhập thêm đối tượng từ JSON vào bản vẽ hiện tại"><i class="fa-solid fa-file-import"></i> Nhập thêm</button>
+      <button id="btn-save" class="rhino-btn px-2 py-1 rounded" title="Lưu bản vẽ JSON"><i class="fa-solid fa-floppy-disk"></i> Lưu</button>
+      <button id="btn-ui-options" class="rhino-btn px-2 py-1 rounded" title="Tùy chỉnh giao diện và tên bản vẽ"><i class="fa-solid fa-palette"></i> Giao diện</button>
+      <button id="btn-check-updates" class="rhino-btn px-2 py-1 rounded" title="Kiểm tra cập nhật VC@D"><i class="fa-solid fa-cloud-arrow-down"></i> Cập nhật</button>
+      <input id="file-input" type="file" accept=".json" class="hidden">
+      <input id="file-append-input" type="file" accept=".json" class="hidden">
+      <input id="file-dxf-input" type="file" accept=".dxf,.dwg,application/dxf,text/plain" class="hidden">
+    </div>
+  </div>
+
+  <div class="flex items-center gap-2">
+    <div class="flex bg-[#121318] p-0.5 rounded border border-[#323642] text-xs">
+      <button id="view-persp" class="px-2.5 py-1 rounded bg-[#2e3856] text-white font-medium">Perspective</button>
+      <button id="view-top" class="px-2.5 py-1 rounded text-gray-400 hover:text-white">Top (XY)</button>
+      <button id="view-front" class="px-2.5 py-1 rounded text-gray-400 hover:text-white">Front (XZ)</button>
+      <button id="view-right" class="px-2.5 py-1 rounded text-gray-400 hover:text-white">Right (YZ)</button>
+    </div>
+    <div class="h-4 w-[1px] bg-[#383e4c]"></div>
+    <div class="flex bg-[#121318] p-0.5 rounded border border-[#323642] text-xs">
+      <button id="mode-wireframe" class="px-2.5 py-1 rounded text-gray-400 hover:text-white" title="Wireframe">Wire</button>
+      <button id="mode-shaded" class="px-2.5 py-1 rounded bg-[#2e3856] text-white font-medium" title="Shaded">Shaded</button>
+      <button id="mode-ghosted" class="px-2.5 py-1 rounded text-gray-400 hover:text-white" title="Ghosted">Ghost</button>
+    </div>
+    <button id="btn-grid" class="rhino-btn px-2.5 py-1 rounded text-xs active" title="Bật/Tắt Lưới"><i class="fa-solid fa-border-all"></i> Grid</button>
+  </div>
+</header>
+
+<!-- MAIN APP BODY -->
+<div class="flex-1 grid grid-cols-[230px_1fr_260px] overflow-hidden">
+  
+  <!-- LEFT SIDEBAR: Tools & Creation -->
+  <aside class="rhino-panel border-r border-[#323642] flex flex-col overflow-y-auto text-xs">
+    
+    <!-- Creation Panel -->
+    <div class="p-3 border-b border-[#323642]">
+      <h3 class="font-semibold text-gray-400 uppercase tracking-wider mb-2 text-[10px]">Tạo Khối (Primitive 3D)</h3>
+      <div class="grid grid-cols-2 gap-1.5">
+        <button data-create="box" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-cube text-indigo-400"></i> Box</button>
+        <button data-create="sphere" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-globe text-cyan-400"></i> Sphere</button>
+        <button data-create="cylinder" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-database text-purple-400"></i> Cylinder</button>
+        <button data-create="cone" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-mountain text-amber-400"></i> Cone</button>
+        <button data-create="torus" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-circle-notch text-emerald-400"></i> Torus</button>
+        <button data-create="plane" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-square text-blue-400"></i> Plane</button>
+      </div>
+    </div>
+
+    <!-- Curves 2D Panel -->
+    <div class="p-3 border-b border-[#323642]">
+      <h3 class="font-semibold text-gray-400 uppercase tracking-wider mb-2 text-[10px]">Đường & Mặt 2D</h3>
+      <div class="grid grid-cols-2 gap-1.5">
+        <button data-draw="line" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-pen text-yellow-400"></i> Line</button>
+        <button data-draw="polyline" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-chart-line text-emerald-400"></i> Polyline</button>
+        <button data-draw="rectangle" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-regular fa-square text-green-400"></i> Rectangle</button>
+        <button data-draw="circle" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-regular fa-circle text-pink-400"></i> Circle</button>
+      </div>
+      <div class="mt-2 grid grid-cols-3 gap-1.5">
+        <label class="text-[10px] text-gray-400">Dài <input id="dim-length" type="number" value="2" step="0.1" class="rhino-input w-full mt-1"></label>
+        <label class="text-[10px] text-gray-400">Rộng <input id="dim-width" type="number" value="2" step="0.1" class="rhino-input w-full mt-1"></label>
+      </div>
+      <div class="mt-2 grid grid-cols-2 gap-1.5">
+        <label class="text-[10px] text-gray-400">Trục Extrude
+          <select id="extrude-axis" class="rhino-input w-full mt-1"><option value="z">Z</option><option value="x">X</option><option value="y">Y</option></select>
+        </label>
+        <label class="text-[10px] text-gray-400">Chiều cao
+          <input id="draw-height" type="number" value="2" step="0.1" class="rhino-input w-full mt-1">
+        </label>
+      </div>
+      <div class="mt-2 flex gap-1.5">
+        <button id="btn-extrude" class="rhino-btn flex-1 p-1.5 rounded text-center font-medium"><i class="fa-solid fa-arrow-up-from-bracket text-blue-400"></i> Extrude 2D</button>
+        <button id="btn-cancel-draw" class="rhino-btn px-2.5 py-1.5 rounded text-red-400" title="Hủy vẽ">Hủy</button>
+      </div>
+    </div>
+
+    <!-- Transform & Advanced Tools -->
+    <div class="p-3 border-b border-[#323642]">
+      <h3 class="font-semibold text-gray-400 uppercase tracking-wider mb-2 text-[10px]">Hiệu Chỉnh & Nâng Cao</h3>
+      <div class="grid grid-cols-3 gap-1.5 mb-2">
+        <button data-mode="move" class="rhino-btn p-1.5 rounded text-center active"><i class="fa-solid fa-arrows-up-down-left-right"></i><div class="text-[10px] mt-0.5">Move</div></button>
+        <button data-mode="rotate" class="rhino-btn p-1.5 rounded text-center"><i class="fa-solid fa-rotate"></i><div class="text-[10px] mt-0.5">Rotate</div></button>
+        <button data-mode="scale" class="rhino-btn p-1.5 rounded text-center"><i class="fa-solid fa-expand"></i><div class="text-[10px] mt-0.5">Scale</div></button>
+      </div>
+      <div class="grid grid-cols-2 gap-1.5 mb-2">
+        <button id="btn-mirror" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1"><i class="fa-solid fa-arrows-split-up-and-left text-cyan-300"></i> Mirror</button>
+        <button id="btn-array" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1"><i class="fa-solid fa-border-none text-purple-300"></i> Array</button>
+      </div>
+      <div class="grid grid-cols-2 gap-1.5 mb-2">
+        <button id="btn-ortho" class="rhino-btn p-1.5 rounded">Ortho: OFF</button>
+        <button id="btn-gumball" class="rhino-btn p-1.5 rounded active">Gumball: ON</button>
+        <button id="btn-group" class="rhino-btn p-1.5 rounded">Group</button>
+        <button id="btn-ungroup" class="rhino-btn p-1.5 rounded">Ungroup</button>
+      </div>
+      <div class="grid grid-cols-2 gap-1.5 mb-2">
+        <button id="btn-export-dxf" class="rhino-btn p-1.5 rounded">Export DXF 2D</button>
+        <button id="btn-export-obj" class="rhino-btn p-1.5 rounded">Export OBJ 3D</button>
+      </div>
+      <div class="grid grid-cols-3 gap-1.5">
+        <button id="btn-bool-union" class="rhino-btn p-1 rounded text-center" title="Boolean Union">Union</button>
+        <button id="btn-bool-diff" class="rhino-btn p-1 rounded text-center" title="Boolean Difference">Diff</button>
+        <button id="btn-bool-inter" class="rhino-btn p-1 rounded text-center" title="Boolean Intersection">Inter</button>
+      </div>
+    </div>
+
+    <!-- Layers Manager -->
+    <div class="p-3 flex-1 flex flex-col min-h-[150px]">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold text-gray-400 uppercase tracking-wider text-[10px]">Layers</h3>
+        <button id="btn-add-layer" class="rhino-btn px-1.5 py-0.5 rounded text-[10px]"><i class="fa-solid fa-plus"></i> Thêm</button>
+      </div>
+      <div id="layer-list" class="flex-1 bg-[#181920] border border-[#383e4c] rounded p-1 space-y-1 overflow-y-auto">
+        <!-- Rendered dynamically -->
+      </div>
+      <div id="layer-create-panel" class="hidden mt-2 p-2 rounded border border-[#414858] bg-[#20232b] space-y-2">
+        <label class="block text-[10px] text-gray-400">Tên layer mới</label>
+        <input id="layer-new-name" type="text" placeholder="Nhập tên layer" class="rhino-input w-full text-xs" maxlength="60">
+        <div class="flex items-center justify-between gap-2">
+          <label for="layer-new-color" class="text-[10px] text-gray-400">Màu layer</label>
+          <input id="layer-new-color" type="color" value="#38d9a9" class="w-8 h-6 bg-transparent cursor-pointer">
+        </div>
+        <div class="grid grid-cols-2 gap-1">
+          <button id="layer-create-confirm" class="rhino-btn p-1 rounded text-xs">Tạo layer</button>
+          <button id="layer-create-cancel" class="rhino-btn p-1 rounded text-xs">Hủy</button>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
+  <div id="object-context-menu" class="hidden fixed z-[9999] min-w-[190px] rounded border border-[#4a5060] bg-[#20232b] p-1 shadow-xl text-xs text-gray-100">
+    <button id="ctx-make-current" class="w-full text-left px-2 py-1.5 rounded hover:bg-[#343a49]">Đặt layer hiện hành</button>
+    <div class="border-t border-[#3b404c] my-1"></div>
+    <div class="px-2 py-1 text-[10px] uppercase text-gray-400">Chuyển đối tượng sang layer</div>
+    <div id="ctx-layer-options" class="max-h-40 overflow-y-auto"></div>
+    <button id="ctx-new-layer" class="w-full text-left px-2 py-1.5 rounded hover:bg-[#343a49]">+ Tạo layer mới…</button>
+  </div>
+
+  <!-- CENTER STAGE & COMMAND LINE -->
+  <main class="relative bg-[#16171d] flex flex-col overflow-hidden">
+    
+    <!-- Viewport Canvas -->
+    <div id="viewport-container" class="flex-1 relative w-full h-full">
+      <canvas id="view-canvas" class="w-full h-full block touch-none"></canvas>
+      
+      <!-- Overlay Tags -->
+      <div class="absolute top-3 left-3 flex gap-2 pointer-events-none">
+        <div id="view-tag" class="bg-[#181920]/80 border border-[#383e4c] rounded px-2 py-1 text-xs text-gray-300 backdrop-blur">Perspective</div>
+        <div id="sel-tag" class="bg-[#181920]/80 border border-[#383e4c] rounded px-2 py-1 text-xs text-indigo-300 backdrop-blur">Chưa chọn đối tượng</div>
+      </div>
+
+      <!-- Quick Hint -->
+      <div id="viewport-hint" class="absolute bottom-3 left-3 bg-[#181920]/80 border border-[#383e4c] rounded px-2.5 py-1 text-[11px] text-gray-400 backdrop-blur pointer-events-none">
+        Chuột trái: Chọn/Kéo gumball · Chuột phải+kéo: Xoay camera · Con lăn: Zoom
+      </div>
+    </div>
+
+    <!-- Command Line Section -->
+    <div class="h-11 bg-[#181920] border-t border-[#323642] px-3 flex items-center gap-3 relative">
+      <div class="text-xs font-semibold text-indigo-400 whitespace-nowrap">Command:</div>
+      <div class="relative flex-1">
+        <input id="command-input" type="text" class="rhino-input w-full text-xs" placeholder="Gõ lệnh (vd: Box, Line, Move, Rotate, Extrude, Union, Mirror, Array...)">
+        <div id="autocomplete-list"></div>
+      </div>
+      <button id="btn-run-command" class="rhino-btn px-3 py-1 rounded text-xs">Thực thi</button>
+    </div>
+
+  </main>
+
+  <!-- RIGHT SIDEBAR: Properties & Object List -->
+  <aside class="rhino-panel border-l border-[#323642] flex flex-col overflow-y-auto text-xs">
+    
+    <!-- Properties Panel -->
+    <div class="p-3 border-b border-[#323642]">
+      <h3 class="font-semibold text-gray-400 uppercase tracking-wider mb-2 text-[10px]">Properties</h3>
+      
+      <div class="space-y-2">
+        <div>
+          <label class="text-[11px] text-gray-400 block mb-1">Tên đối tượng</label>
+          <input id="prop-name" type="text" class="rhino-input w-full" disabled>
+        </div>
+
+        <div class="text-[11px] text-gray-400 mt-2">Vị trí (XYZ)</div>
+        <div class="grid grid-cols-3 gap-1">
+          <div class="flex items-center bg-[#181920] border border-[#383e4c] rounded px-1"><span class="text-red-400 font-bold mr-1">X</span><input id="prop-px" type="number" step="0.1" class="w-full bg-transparent text-right outline-none" disabled></div>
+          <div class="flex items-center bg-[#181920] border border-[#383e4c] rounded px-1"><span class="text-green-400 font-bold mr-1">Y</span><input id="prop-py" type="number" step="0.1" class="w-full bg-transparent text-right outline-none" disabled></div>
+          <div class="flex items-center bg-[#181920] border border-[#383e4c] rounded px-1"><span class="text-blue-400 font-bold mr-1">Z</span><input id="prop-pz" type="number" step="0.1" class="w-full bg-transparent text-right outline-none" disabled></div>
+        </div>
+
+        <div class="text-[11px] text-gray-400 mt-2">Góc xoay (Độ)</div>
+        <div class="grid grid-cols-3 gap-1">
+          <div class="flex items-center bg-[#181920] border border-[#383e4c] rounded px-1"><span class="text-red-400 font-bold mr-1">X</span><input id="prop-rx" type="number" step="1" class="w-full bg-transparent text-right outline-none" disabled></div>
+          <div class="flex items-center bg-[#181920] border border-[#383e4c] rounded px-1"><span class="text-green-400 font-bold mr-1">Y</span><input id="prop-ry" type="number" step="1" class="w-full bg-transparent text-right outline-none" disabled></div>
+          <div class="flex items-center bg-[#181920] border border-[#383e4c] rounded px-1"><span class="text-blue-400 font-bold mr-1">Z</span><input id="prop-rz" type="number" step="1" class="w-full bg-transparent text-right outline-none" disabled></div>
+        </div>
+
+        <div class="text-[11px] text-gray-400 mt-2">Kích thước / Tỷ lệ</div>
+        <div class="grid grid-cols-3 gap-1">
+          <div class="flex items-center bg-[#181920] border border-[#383e4c] rounded px-1"><span class="text-red-400 font-bold mr-1">X</span><input id="prop-sx" type="number" step="0.1" min="0.001" class="w-full bg-transparent text-right outline-none" disabled></div>
+          <div class="flex items-center bg-[#181920] border border-[#383e4c] rounded px-1"><span class="text-green-400 font-bold mr-1">Y</span><input id="prop-sy" type="number" step="0.1" min="0.001" class="w-full bg-transparent text-right outline-none" disabled></div>
+          <div class="flex items-center bg-[#181920] border border-[#383e4c] rounded px-1"><span class="text-blue-400 font-bold mr-1">Z</span><input id="prop-sz" type="number" step="0.1" min="0.001" class="w-full bg-transparent text-right outline-none" disabled></div>
+        </div>
+
+        <div class="mt-3 border-t border-[#323642] pt-2">
+          <div class="text-[11px] text-gray-300 font-semibold mb-1">Kích thước thực (D × R × C)</div>
+          <div class="grid grid-cols-3 gap-1">
+            <div><label class="text-[10px] text-red-400">Dài X</label><input id="prop-dim-x" type="text" readonly value="—" class="rhino-input w-full text-right text-xs"></div>
+            <div><label class="text-[10px] text-green-400">Rộng Y</label><input id="prop-dim-y" type="text" readonly value="—" class="rhino-input w-full text-right text-xs"></div>
+            <div><label class="text-[10px] text-blue-400">Cao Z</label><input id="prop-dim-z" type="text" readonly value="—" class="rhino-input w-full text-right text-xs"></div>
+          </div>
+          <div class="text-[10px] text-gray-500 mt-1">Đối tượng 2D có chiều cao Z = 0.</div>
+        </div>
+
+        <div class="mt-2">
+          <label class="text-[11px] text-gray-400 block mb-1">Màu sắc</label>
+          <input id="prop-color" type="color" class="w-full h-7 bg-[#181920] border border-[#383e4c] rounded cursor-pointer" disabled>
+        </div>
+
+        <button id="prop-apply" class="rhino-btn w-full mt-2 py-1.5 rounded font-medium text-center" disabled>Áp dụng thông số</button>
+      </div>
+    </div>
+
+    <!-- Objects Outliner -->
+    <div class="p-3 flex-1 flex flex-col min-h-[160px]">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold text-gray-400 uppercase tracking-wider text-[10px]">Danh Sách Đối Tượng</h3>
+        <button id="btn-delete" class="rhino-btn px-2 py-0.5 rounded text-red-400 hover:text-red-300 text-[10px]"><i class="fa-solid fa-trash"></i> Xóa</button>
+      </div>
+      <div id="objects-list" class="flex-1 bg-[#181920] border border-[#383e4c] rounded p-1 space-y-1 overflow-y-auto">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+  </aside>
+
+</div>
+
+<!-- STATUS BAR -->
+<footer class="h-6 bg-[#181920] border-t border-[#323642] px-3 flex items-center justify-between text-[11px] text-gray-400">
+  <div id="status-text" class="truncate">Sẵn sàng. Chào mừng bạn đến với VC@D.</div>
+  <div class="flex items-center gap-4">
+    <span id="coords-display">X: 0.0 Y: 0.0 Z: 0.0</span>
+    <span id="units-display">Đơn vị: Mét (m)</span>
+  </div>
+</footer>
+
+<!-- CUSTOM MODAL DIALOG (No alert/confirm) -->
+<div id="custom-modal" class="modal-overlay hidden">
+  <div class="bg-[#242730] border border-[#383e4c] rounded-lg p-5 w-96 shadow-2xl">
+    <h3 id="modal-title" class="font-bold text-sm text-indigo-400 mb-2">Thông báo</h3>
+    <p id="modal-desc" class="text-xs text-gray-300 mb-4">Nội dung thông báo...</p>
+    <div id="modal-content" class="mb-4"></div>
+    <div class="flex justify-end gap-2">
+      <button id="modal-cancel" class="rhino-btn px-3 py-1.5 rounded text-xs hidden">Hủy</button>
+      <button id="modal-ok" class="rhino-btn bg-indigo-600 hover:bg-indigo-500 border-indigo-500 px-4 py-1.5 rounded text-xs text-white">Đồng ý</button>
+    </div>
+  </div>
+</div>
+
+<!-- APPEARANCE / DRAWING NAME SETTINGS -->
+<div id="ui-settings-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="ui-settings-title">
+  <div class="bg-[#242730] border border-[#383e4c] rounded-lg p-5 w-[min(92vw,460px)] shadow-2xl">
+    <h3 id="ui-settings-title" class="font-bold text-sm text-indigo-400 mb-2">Tùy chọn giao diện</h3>
+    <p class="text-xs text-gray-400 mb-4">Đổi màu thanh menu, màu nền vùng làm việc và tên bản vẽ. Tùy chọn màu được lưu trên máy này.</p>
+    <div class="space-y-3 text-xs">
+      <div>
+        <label for="setting-drawing-name" class="block text-gray-300 mb-1">Tên bản vẽ</label>
+        <input id="setting-drawing-name" type="text" maxlength="100" class="rhino-input w-full" value="Bản vẽ mới" placeholder="Nhập tên bản vẽ">
+      </div>
+      <label class="flex items-center gap-2 text-gray-300"><input id="setting-show-drawing-name" type="checkbox" checked> Hiển thị tên bản vẽ trên thanh menu</label>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label for="setting-menubar-color" class="block text-gray-300 mb-1">Màu menubar</label>
+          <input id="setting-menubar-color" type="color" value="#181920" class="w-full h-9 rounded border border-[#383e4c] bg-[#181920] cursor-pointer">
+        </div>
+        <div>
+          <label for="setting-background-color" class="block text-gray-300 mb-1">Màu nền vùng làm việc</label>
+          <input id="setting-background-color" type="color" value="#16171d" class="w-full h-9 rounded border border-[#383e4c] bg-[#181920] cursor-pointer">
+        </div>
+      </div>
+      <p class="text-[11px] text-gray-500">Lưu ý: VC@D hiện nhập trực tiếp DXF dạng văn bản ASCII. Tệp DWG cần được lưu/chuyển sang DXF trước khi mở.</p>
+    </div>
+    <div class="flex justify-between gap-2 mt-5">
+      <button id="btn-settings-reset" class="rhino-btn px-3 py-1.5 rounded text-xs">Mặc định</button>
+      <div class="flex gap-2">
+        <button id="btn-settings-cancel" class="rhino-btn px-3 py-1.5 rounded text-xs">Hủy</button>
+        <button id="btn-settings-apply" class="rhino-btn bg-indigo-600 hover:bg-indigo-500 border-indigo-500 px-4 py-1.5 rounded text-xs text-white">Áp dụng</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ==========================================================
+   MESH STUDIO — RHINO 8 WEB EDITION ENGINE
+   ========================================================== */
+
+let scene, camera, renderer, controls;
+let objects = [], selectedObject = null;
+let drawingName = 'Bản vẽ mới';
+const DEFAULT_UI_SETTINGS = { menubarColor: '#181920', backgroundColor: '#16171d', showDrawingName: true };
+let currentUiSettings = { ...DEFAULT_UI_SETTINGS };
+let savedUiSettings = { ...DEFAULT_UI_SETTINGS };
+
+// Advanced CAD tool state (initialized explicitly to prevent startup ReferenceErrors).
+let selectedObjects = [];
+let preserveMultiSelection = false;
+let lastListSelection = null;
+let orthoEnabled = false;
+let gumballEnabled = true;
+let layers = [
+  { id: 1, name: 'Default', color: '#5c7cfa', visible: true, locked: false },
+  { id: 2, name: 'Layer 01', color: '#38d9a9', visible: true, locked: false }
+];
+let currentLayerId = 1;
+let currentMode = 'move';
+let currentView = 'persp';
+let displayMode = 'shaded';
+let gridEnabled = true;
+let drawMode = null;
+let drawPoints = [];
+let previewLine = null;
+let tempDrawMesh = null;
+
+// Gumball state
+let gumballGroup = null;
+let activeGumballAxis = null;
+let gumballInitialPos = new THREE.Vector3();
+let raycaster = new THREE.Raycaster();
+let mouse = new THREE.Vector2();
+let isDraggingGumball = false;
+let rotateObjectDrag = false;
+let scaleObjectDrag = false;
+let scaleDragLastY = 0;
+let scaleDragStart = null;
+let rotateDragLast = { x: 0, y: 0 };
+let dragStartPositions = null;
+let gumballPlane = new THREE.Plane();
+let gumballIntersect = new THREE.Vector3();
+
+// Command list for autocomplete
+const AVAILABLE_COMMANDS = [
+  { cmd: 'box', desc: 'Tạo khối hộp 3D' },
+  { cmd: 'sphere', desc: 'Tạo khối cầu 3D' },
+  { cmd: 'cylinder', desc: 'Tạo khối trụ 3D' },
+  { cmd: 'cone', desc: 'Tạo khối nón 3D' },
+  { cmd: 'torus', desc: 'Tạo vành khuyên 3D' },
+  { cmd: 'plane', desc: 'Tạo mặt phẳng 3D' },
+  { cmd: 'line', desc: 'Vẽ đường thẳng 2D' },
+  { cmd: 'arc', desc: 'Vẽ cung qua 3 điểm' },
+  { cmd: 'dim', desc: 'Ghi kích thước giữa 2 điểm' },
+  { cmd: 'polyline', desc: 'Vẽ đa tuyến 2D' },
+  { cmd: 'rectangle / rec', desc: 'Vẽ hình chữ nhật 2D: dài, rộng' },
+  { cmd: 'circle / c / cr / cd', desc: 'Vẽ tròn: bán kính hoặc đường kính' },
+  { cmd: 'extrude', desc: 'Đùn đối tượng 2D thành khối' },
+  { cmd: 'move', desc: 'Di chuyển đối tượng' },
+  { cmd: 'rotate', desc: 'Xoay đối tượng' },
+  { cmd: 'scale', desc: 'Đổi tỷ lệ đối tượng' },
+  { cmd: 'mirror', desc: 'Đối xứng đối tượng qua trục' },
+  { cmd: 'array', desc: 'Nhân bản mảng đối tượng' },
+  { cmd: 'union', desc: 'Boolean Union (Gộp khối)' },
+  { cmd: 'difference', desc: 'Boolean Difference (Trừ khối)' },
+  { cmd: 'intersection', desc: 'Boolean Intersection (Giao khối)' },
+  { cmd: 'top', desc: 'Chuyển về View Top (XY)' },
+  { cmd: 'front', desc: 'Chuyển về View Front (XZ)' },
+  { cmd: 'right', desc: 'Chuyển về View Right (YZ)' },
+  { cmd: 'perspective', desc: 'Chuyển về View Perspective' },
+  { cmd: 'wireframe', desc: 'Chế độ khung dây' },
+  { cmd: 'shaded', desc: 'Chế độ tô màu chuẩn' },
+  { cmd: 'ghosted', desc: 'Chế độ bán trong suốt' },
+  { cmd: 'delete', desc: 'Xóa đối tượng đang chọn' },
+  { cmd: 'help', desc: 'Hiển thị hướng dẫn lệnh' },
+  { cmd: 'ortho', desc: 'Khóa phương ngang/dọc khi vẽ' },
+  { cmd: 'import', desc: 'Nhập thêm đối tượng từ tệp JSON' }
+];
+
+// Custom Modal Dialog Helper
+function showModal(title, desc, isConfirm = false, inputPlaceholder = '', callback = null) {
+  const modal = document.getElementById('custom-modal');
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-desc').textContent = desc;
+  const contentEl = document.getElementById('modal-content');
+  contentEl.innerHTML = '';
+  
+  if (inputPlaceholder !== null && inputPlaceholder !== undefined && inputPlaceholder !== '') {
+    contentEl.innerHTML = `<input id="modal-input" type="text" class="rhino-input w-full" value="${inputPlaceholder}">`;
+  }
+  
+  const cancelBtn = document.getElementById('modal-cancel');
+  if (isConfirm) cancelBtn.classList.remove('hidden');
+  else cancelBtn.classList.add('hidden');
+  
+  modal.classList.remove('hidden');
+  
+  const okBtn = document.getElementById('modal-ok');
+  const newOkBtn = okBtn.cloneNode(true);
+  okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+  
+  const newCancelBtn = cancelBtn.cloneNode(true);
+  cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+  
+  newOkBtn.onclick = () => {
+    modal.classList.add('hidden');
+    let val = document.getElementById('modal-input') ? document.getElementById('modal-input').value : true;
+    if (callback) callback(val);
+  };
+  
+  newCancelBtn.onclick = () => {
+    modal.classList.add('hidden');
+    if (callback && isConfirm) callback(null);
+  };
+}
+
+function setStatus(text) {
+  document.getElementById('status-text').textContent = text;
+}
+
+// Initialize Three.js Scene
+function init() {
+  const container = document.getElementById('viewport-container');
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x16171d);
+
+  camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+  camera.up.set(0, 0, 1); camera.position.set(15, -18, 14);
+
+  renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('view-canvas'), antialias: true, alpha: true });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.05;
+
+  // Lighting
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+  scene.add(ambientLight);
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+  dirLight.position.set(20, 40, 20);
+  dirLight.castShadow = true;
+  scene.add(dirLight);
+
+  const dirLight2 = new THREE.DirectionalLight(0x90b0ff, 0.4);
+  dirLight2.position.set(-20, -20, -20);
+  scene.add(dirLight2);
+
+  // Grid
+  setupGrid();
+  setupGumball();
+  setupEvents();
+  
+  // Create default objects
+  createObject('box', { name: 'Box_01', pos: [0, 0, 1], color: '#5c7cfa' });
+  createObject('cylinder', { name: 'Cylinder_01', pos: [4, 0, 1], color: '#38d9a9' });
+
+  updateLayersUI();
+  updateObjectsList();
+  initAdvancedTools();
+  initUiCustomization();
+  
+  window.addEventListener('resize', onWindowResize);
+  animate();
+}
+
+let gridHelper = null;
+function setupGrid() {
+  if (gridHelper) scene.remove(gridHelper);
+  gridHelper = new THREE.GridHelper(40, 40, 0x5c7cfa, 0x323642);
+  gridHelper.rotation.x = Math.PI / 2; gridHelper.position.z = 0;
+  gridHelper.visible = gridEnabled;
+  scene.add(gridHelper);
+}
+
+// Gumball Gizmo setup
+function setupGumball() {
+  gumballGroup = new THREE.Group();
+  gumballGroup.visible = false;
+
+  // X Axis (Red)
+  const xMat = new THREE.MeshBasicMaterial({ color: 0xff5555 });
+  const xArrow = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.5, 8), xMat);
+  xArrow.rotation.z = -Math.PI / 2;
+  xArrow.position.x = 1.5;
+  xArrow.userData = { axis: 'x', type: 'translate' };
+  gumballGroup.add(xArrow);
+
+  const xLine = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 3, 6), xMat);
+  xLine.rotation.z = -Math.PI / 2;
+  xLine.position.x = 0.75;
+  gumballGroup.add(xLine);
+
+  // Y Axis (Green)
+  const yMat = new THREE.MeshBasicMaterial({ color: 0x55ff55 });
+  const yArrow = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.5, 8), yMat);
+  yArrow.position.y = 1.5;
+  yArrow.userData = { axis: 'y', type: 'translate' };
+  gumballGroup.add(yArrow);
+
+  const yLine = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 3, 6), yMat);
+  yLine.position.y = 0.75;
+  gumballGroup.add(yLine);
+
+  // Z Axis (Blue)
+  const zMat = new THREE.MeshBasicMaterial({ color: 0x5588ff });
+  const zArrow = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.5, 8), zMat);
+  zArrow.rotation.x = Math.PI / 2;
+  zArrow.position.z = 1.5;
+  zArrow.userData = { axis: 'z', type: 'translate' };
+  gumballGroup.add(zArrow);
+
+  const zLine = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 3, 6), zMat);
+  zLine.rotation.x = Math.PI / 2;
+  zLine.position.z = 0.75;
+  gumballGroup.add(zLine);
+
+  scene.add(gumballGroup);
+}
+
+// Object creation helper
+let objectIdCounter = 1;
+function createObject(type, options = {}) {
+  let geometry, material;
+  const activeLayer = layers.find(l => l.id === currentLayerId);
+  const color = activeLayer?.color || options.color || '#5c7cfa';
+  const matConfig = { color: color, roughness: 0.3, metalness: 0.1 };
+
+  if (displayMode === 'wireframe') matConfig.wireframe = true;
+  else if (displayMode === 'ghosted') { matConfig.transparent = true; matConfig.opacity = 0.4; }
+
+  switch(type) {
+    case 'box':
+      geometry = new THREE.BoxGeometry(options.dims?.[0] || 2, options.dims?.[1] || 2, options.dims?.[2] || 2);
+      break;
+    case 'sphere':
+      geometry = new THREE.SphereGeometry(1.2, 24, 24);
+      break;
+    case 'cylinder':
+      geometry = new THREE.CylinderGeometry((options.dims?.[0] || 2)/2, (options.dims?.[0] || 2)/2, options.dims?.[2] || 2, 24); geometry.rotateX(Math.PI/2);
+      break;
+    case 'cone':
+      geometry = new THREE.ConeGeometry((options.dims?.[0] || 2)/2, options.dims?.[2] || 2, 24); geometry.rotateX(Math.PI/2);
+      break;
+    case 'torus':
+      geometry = new THREE.TorusGeometry(1.2, 0.4, 16, 32);
+      break;
+    case 'plane':
+      geometry = new THREE.PlaneGeometry(options.dims?.[0] || 3, options.dims?.[1] || 3);
+      break;
+    default:
+      geometry = new THREE.BoxGeometry(2, 2, 2);
+  }
+
+  material = new THREE.MeshStandardMaterial(matConfig);
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+
+  if (options.pos) mesh.position.set(...options.pos);
+  else mesh.position.set(0, 0, (options.dims?.[2] || 2)/2);
+
+  if (options.rot) mesh.rotation.set(...options.rot);
+  if (options.scale) mesh.scale.set(...options.scale);
+
+  const objData = {
+    id: objectIdCounter++,
+    name: options.name || `${type.charAt(0).toUpperCase() + type.slice(1)}_${String(objectIdCounter).padStart(2, '0')}`,
+    type: type,
+    mesh: mesh,
+    layerId: currentLayerId,
+    color: color
+  };
+
+  mesh.userData = { objData };
+  scene.add(mesh);
+  objects.push(objData);
+  selectObject(objData);
+  updateObjectsList();
+  setStatus(`Đã tạo đối tượng: ${objData.name}`);
+  return objData;
+}
+
+
+function refreshProperties() {
+  if (!selectedObject) return;
+  const m=selectedObject.mesh;
+  document.getElementById('prop-px').value=m.position.x.toFixed(3);
+  document.getElementById('prop-py').value=m.position.y.toFixed(3);
+  document.getElementById('prop-pz').value=m.position.z.toFixed(3);
+  document.getElementById('prop-rx').value=THREE.MathUtils.radToDeg(m.rotation.x).toFixed(1);
+  document.getElementById('prop-ry').value=THREE.MathUtils.radToDeg(m.rotation.y).toFixed(1);
+  document.getElementById('prop-rz').value=THREE.MathUtils.radToDeg(m.rotation.z).toFixed(1);
+  document.getElementById('prop-sx').value=m.scale.x.toFixed(3);
+  document.getElementById('prop-sy').value=m.scale.y.toFixed(3);
+  document.getElementById('prop-sz').value=m.scale.z.toFixed(3);
+  updateActualDimensions(selectedObject);
+}
+function setDrawMode(mode) {
+  cancelDraw(); drawMode=mode; drawPoints=[];
+  controls.enabled=false;
+  setStatus(`${mode.toUpperCase()}: nhấp điểm trên mặt phẳng XY; Enter kết thúc Polyline/Line, Esc hủy. Shift khóa vuông góc.`);
+}
+function redrawPreview(cursorPoint=null) {
+  if (previewLine) { scene.remove(previewLine); previewLine.geometry.dispose(); previewLine=null; }
+  const pts=drawPoints.map(p=>p.clone()); if(cursorPoint) pts.push(cursorPoint.clone());
+  if(pts.length<2) return;
+  const geom=new THREE.BufferGeometry().setFromPoints(pts);
+  previewLine=new THREE.Line(geom,new THREE.LineBasicMaterial({color:0xffd166})); scene.add(previewLine);
+}
+function cancelDraw() {
+  if(previewLine){scene.remove(previewLine);previewLine.geometry.dispose();previewLine=null;}
+  drawMode=null;drawPoints=[];controls.enabled=true;
+}
+function finishDraw() {
+  if(!drawMode) return;
+  const mode=drawMode, pts=drawPoints.map(p=>p.clone());
+  if(previewLine){scene.remove(previewLine);previewLine.geometry.dispose();previewLine=null;}
+  if(mode==='line' && pts.length<2){setStatus('Line cần 2 điểm.');return;}
+  if(mode==='polyline' && pts.length<2){setStatus('Polyline cần ít nhất 2 điểm.');return;}
+  let closed=false, shapePoints=null, mesh;
+  if(mode==='rectangle') {
+    if(pts.length<2){setStatus('Rectangle cần 2 góc.');return;}
+    const a=pts[0],b=pts[pts.length-1];
+    shapePoints=[[a.x,a.y],[b.x,a.y],[b.x,b.y],[a.x,b.y]];closed=true;
+    const sh=new THREE.Shape(); sh.moveTo(a.x,a.y);sh.lineTo(b.x,a.y);sh.lineTo(b.x,b.y);sh.lineTo(a.x,b.y);sh.closePath();
+    mesh=new THREE.Mesh(new THREE.ShapeGeometry(sh),new THREE.MeshStandardMaterial({color:'#5c7cfa',side:THREE.DoubleSide,transparent:true,opacity:.55}));
+    mesh.position.z=0.005;
+  } else if(mode==='circle') {
+    if(pts.length<2){setStatus('Circle cần tâm và điểm bán kính.');return;}
+    const a=pts[0],b=pts[pts.length-1],r=Math.hypot(b.x-a.x,b.y-a.y);
+    if(r<1e-5){setStatus('Bán kính phải lớn hơn 0.');return;}
+    const sh=new THREE.Shape();sh.absarc(a.x,a.y,r,0,Math.PI*2,false);
+    mesh=new THREE.Mesh(new THREE.ShapeGeometry(sh),new THREE.MeshStandardMaterial({color:'#5c7cfa',side:THREE.DoubleSide,transparent:true,opacity:.55}));
+    shapePoints=Array.from({length:64},(_,i)=>[a.x+r*Math.cos(i*Math.PI/32),a.y+r*Math.sin(i*Math.PI/32)]);closed=true;mesh.position.z=.005;
+  } else {
+    const linePts=pts.map(p=>new THREE.Vector3(p.x,p.y,0.01));
+    const geom=new THREE.BufferGeometry().setFromPoints(linePts);
+    mesh=new THREE.Line(geom,new THREE.LineBasicMaterial({color:'#5c7cfa'}));
+    shapePoints=pts.map(p=>[p.x,p.y]);
+  }
+  const obj={id:objectIdCounter++,name:`${mode[0].toUpperCase()+mode.slice(1)}_${String(objectIdCounter).padStart(2,'0')}`,type:mode==='line'?'line2d':mode,mesh,layerId:currentLayerId,color:'#5c7cfa',shapePoints,closed};
+  mesh.userData={objData:obj,shapePoints,closed};scene.add(mesh);objects.push(obj);selectObject(obj);updateObjectsList();
+  cancelDraw();setStatus(`Đã tạo ${obj.name}.`);
+}
+function extrudeSelected(height, axis='z') {
+  if(!selectedObject||!selectedObject.closed||!selectedObject.shapePoints||selectedObject.shapePoints.length<3){showModal('Extrude','Chọn Rectangle hoặc Circle kín trước khi Extrude.');return;}
+  const shape=new THREE.Shape();selectedObject.shapePoints.forEach((p,i)=>i===0?shape.moveTo(p[0],p[1]):shape.lineTo(p[0],p[1]));shape.closePath();
+  const geom=new THREE.ExtrudeGeometry(shape,{depth:Math.abs(height),bevelEnabled:false,steps:1});
+  const color=selectedObject.color,name=selectedObject.name+'_Extruded';
+  const mesh=new THREE.Mesh(geom,new THREE.MeshStandardMaterial({color,roughness:.3,metalness:.1}));
+  if(axis==='x'){mesh.rotation.y=Math.PI/2;mesh.position.x=height<0?height:0;}else if(axis==='y'){mesh.rotation.x=-Math.PI/2;mesh.position.y=height<0?height:0;}else{mesh.position.z=height<0?height:0;}mesh.castShadow=true;mesh.receiveShadow=true;
+  const obj={id:objectIdCounter++,name,type:'extrusion',mesh,layerId:currentLayerId,color};
+  mesh.userData={objData:obj};scene.add(mesh);objects.push(obj);selectObject(obj);updateObjectsList();setStatus(`Extrude thành công theo trục ${axis.toUpperCase()}: ${height} m.`);
+}
+
+// Selection & Properties
+function updateActualDimensions(objData) {
+  const ids=['prop-dim-x','prop-dim-y','prop-dim-z'];
+  if(!objData || !objData.mesh || !objData.mesh.geometry){
+    ids.forEach(id=>{const el=document.getElementById(id);if(el)el.value='—';});
+    return;
+  }
+  const mesh=objData.mesh;
+  mesh.updateMatrixWorld(true);
+  const box=new THREE.Box3().setFromObject(mesh);
+  const size=new THREE.Vector3();
+  box.getSize(size);
+  const type=String(objData.type||objData.kind||'').toLowerCase();
+  const is2D=['line','polyline','rectangle','circle','point'].some(k=>type.includes(k)) ||
+    (size.z < 1e-6 && size.x >= 0 && size.y >= 0);
+  document.getElementById('prop-dim-x').value=size.x.toFixed(3);
+  document.getElementById('prop-dim-y').value=size.y.toFixed(3);
+  document.getElementById('prop-dim-z').value=is2D?'0.000':size.z.toFixed(3);
+}
+function selectObject(objData) {
+  selectedObject = objData;
+  if(objData && !preserveMultiSelection) selectedObjects=[objData];
+  if (objData) {
+    gumballGroup.position.copy(objData.mesh.position);
+    gumballGroup.visible = gumballEnabled;
+    document.getElementById('sel-tag').textContent = `Đã chọn: ${objData.name}`;
+    
+    // Populate properties panel
+    document.getElementById('prop-name').value = objData.name;
+    document.getElementById('prop-px').value = objData.mesh.position.x.toFixed(2);
+    document.getElementById('prop-py').value = objData.mesh.position.y.toFixed(2);
+    document.getElementById('prop-pz').value = objData.mesh.position.z.toFixed(2);
+    document.getElementById('prop-rx').value = THREE.MathUtils.radToDeg(objData.mesh.rotation.x).toFixed(0);
+    document.getElementById('prop-ry').value = THREE.MathUtils.radToDeg(objData.mesh.rotation.y).toFixed(0);
+    document.getElementById('prop-rz').value = THREE.MathUtils.radToDeg(objData.mesh.rotation.z).toFixed(0);
+    document.getElementById('prop-sx').value = objData.mesh.scale.x.toFixed(2);
+    document.getElementById('prop-sy').value = objData.mesh.scale.y.toFixed(2);
+    document.getElementById('prop-sz').value = objData.mesh.scale.z.toFixed(2);
+    document.getElementById('prop-color').value = objData.color;
+    updateActualDimensions(objData);
+
+    // Enable inputs
+    ['prop-name', 'prop-px', 'prop-py', 'prop-pz', 'prop-rx', 'prop-ry', 'prop-rz', 'prop-sx', 'prop-sy', 'prop-sz', 'prop-color', 'prop-apply'].forEach(id => {
+      document.getElementById(id).disabled = false;
+    });
+  } else {
+    gumballGroup.visible = false;
+    document.getElementById('sel-tag').textContent = 'Chưa chọn đối tượng';
+    ['prop-name', 'prop-px', 'prop-py', 'prop-pz', 'prop-rx', 'prop-ry', 'prop-rz', 'prop-sx', 'prop-sy', 'prop-sz', 'prop-color', 'prop-apply'].forEach(id => {
+      const el = document.getElementById(id);
+      el.disabled = true;
+      if (id !== 'prop-apply') el.value = '';
+    });
+  }
+  updateObjectsList();
+}
+
+function updateObjectsList() {
+  const listEl=document.getElementById('objects-list');
+  listEl.innerHTML='';
+  const roots=objects.filter(o=>!o.hiddenByGroup && !(o.parentGroup));
+  const render=(o,depth=0)=>{
+    const div=document.createElement('div');
+    div.dataset.objectId=o.id;
+    div.style.marginLeft=`${depth*14}px`;
+    const selected=selectedObjects.includes(o)||o===selectedObject;
+    div.className=`flex items-center justify-between p-1.5 rounded cursor-pointer text-xs ${selected?'bg-[#b88700] text-white':'hover:bg-[#20232a] text-gray-300'}`;
+    const isGroup=o.type==='group';
+    div.innerHTML=`<div class="flex items-center gap-2"><i class="fa-solid ${isGroup?'fa-folder':'fa-cube'} text-[10px]"></i><span>${o.name}</span></div><span class="text-[10px] text-gray-400">${isGroup?'Group':o.type}</span>`;
+    div.oncontextmenu=e=>openObjectContextMenu(e,o);
+    div.onclick=e=>{
+      if(e.ctrlKey||e.metaKey){
+        const set=new Set(selectedObjects);if(set.has(o))set.delete(o);else set.add(o);
+        lastListSelection=o;setSelectionMany([...set],o);return;
+      }
+      if(e.shiftKey&&lastListSelection){
+        const visible=roots;const a=visible.indexOf(lastListSelection),b=visible.indexOf(o);
+        if(a>=0&&b>=0){setSelectionMany(visible.slice(Math.min(a,b),Math.max(a,b)+1),o);return;}
+      }
+      lastListSelection=o;setSelectionMany([o],o);
+    };
+    listEl.appendChild(div);
+    if(isGroup){
+      (o.members||[]).forEach(child=>render(child,depth+1));
+    }
+  };
+  roots.forEach(o=>render(o));
+}
+
+function createLayer(name, color='#38d9a9'){
+  const clean=String(name??'').trim() || `Layer ${String(layers.length).padStart(2,'0')}`;
+  const id=Math.max(0,...layers.map(l=>Number(l.id)||0))+1;
+  const layer={id,name:clean,color:/^#[0-9a-fA-F]{6}$/.test(color)?color:'#38d9a9',visible:true,locked:false};
+  layers.push(layer);
+  currentLayerId=id;
+  updateLayersUI();
+  setStatus(`Đã tạo layer "${clean}" và đặt làm layer hiện hành.`);
+  return layer;
+}
+function assignObjectsToLayer(items,layerId){
+  const layer=layers.find(l=>l.id===Number(layerId));
+  if(!layer)return;
+  const targets=(items&&items.length?items:(selectedObjects.length?selectedObjects:selectedObject?[selectedObject]:[]));
+  targets.forEach(o=>{
+    o.layerId=layer.id;
+    if(o.type==='group'&&o.members)o.members.forEach(child=>{child.layerId=layer.id;});
+  });
+  updateObjectsList();updateLayersUI();
+  setStatus(`${targets.length} đối tượng đã chuyển sang layer "${layer.name}".`);
+}
+function closeObjectContextMenu(){
+  const menu=document.getElementById('object-context-menu');
+  if(menu)menu.classList.add('hidden');
+}
+function openObjectContextMenu(event,obj){
+  event.preventDefault();
+  if(obj&&!selectedObjects.includes(obj))setSelectionMany([obj],obj);
+  const menu=document.getElementById('object-context-menu');
+  const opts=document.getElementById('ctx-layer-options');
+  if(!menu||!opts)return;
+  opts.innerHTML='';
+  layers.forEach(layer=>{
+    const b=document.createElement('button');
+    b.className='w-full text-left px-2 py-1.5 rounded hover:bg-[#343a49] flex items-center gap-2';
+    b.innerHTML=`<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${layer.color}"></span><span>${layer.name}</span>${obj&&obj.layerId===layer.id?'<span class="ml-auto text-indigo-300">✓</span>':''}`;
+    b.onclick=ev=>{ev.stopPropagation();assignObjectsToLayer(selectedObjects.length?selectedObjects:[obj],layer.id);closeObjectContextMenu();};
+    opts.appendChild(b);
+  });
+  const current=document.getElementById('ctx-make-current');
+  current.onclick=()=>{const id=obj?.layerId??currentLayerId;window.setCurrentLayer(id);closeObjectContextMenu();};
+  document.getElementById('ctx-new-layer').onclick=()=>{
+    const name=prompt('Tên layer mới:','Layer '+String(layers.length).padStart(2,'0'));
+    if(name===null){closeObjectContextMenu();return;}
+    const layer=createLayer(name);
+    assignObjectsToLayer(selectedObjects.length?selectedObjects:(obj?[obj]:[]),layer.id);
+    closeObjectContextMenu();
+  };
+  menu.style.left=`${Math.min(event.clientX,window.innerWidth-220)}px`;
+  menu.style.top=`${Math.min(event.clientY,window.innerHeight-260)}px`;
+  menu.classList.remove('hidden');
+  const hide=e=>{if(!menu.contains(e.target)){closeObjectContextMenu();document.removeEventListener('pointerdown',hide,true);}};
+  document.addEventListener('pointerdown',hide,true);
+}
+function updateLayersUI() {
+  const layerListEl = document.getElementById('layer-list');
+  layerListEl.innerHTML = '';
+  layers.forEach(l => {
+    const div = document.createElement('div');
+    div.className = `flex items-center justify-between p-1.5 rounded text-xs ${l.id === currentLayerId ? 'bg-[#2e3856] border border-[#5c7cfa]' : 'bg-[#181920]'}`;
+    div.innerHTML = `
+      <div class="flex items-center gap-2">
+        <input type="color" value="${l.color}" class="w-4 h-4 rounded border-0 cursor-pointer bg-transparent" onchange="changeLayerColor(${l.id}, this.value)">
+        <span class="font-medium ${l.id === currentLayerId ? 'text-white' : 'text-gray-300'}">${l.name}</span>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button class="text-gray-400 hover:text-white" onclick="toggleLayerVisibility(${l.id})"><i class="fa-solid fa-eye${l.visible ? '' : '-slash'}"></i></button>
+        <button class="text-gray-400 hover:text-white" onclick="setCurrentLayer(${l.id})"><i class="fa-solid fa-check ${l.id === currentLayerId ? 'text-indigo-400' : 'opacity-0'}"></i></button>
+      </div>
+    `;
+    layerListEl.appendChild(div);
+  });
+}
+
+window.changeLayerColor = (id, color) => {
+  const l = layers.find(x => x.id === Number(id));
+  if (!l) return;
+  l.color = color;
+  const applyColor = obj => {
+    if (!obj) return;
+    obj.color = color;
+    if (obj.mesh) obj.mesh.traverse(node => {
+      if (!node.isMesh || !node.material) return;
+      const materials = Array.isArray(node.material) ? node.material : [node.material];
+      materials.forEach(mat => {
+        if (mat.color) { mat.color.set(color); mat.needsUpdate = true; }
+      });
+    });
+    if (obj.type === 'group' && obj.members) obj.members.forEach(applyColor);
+  };
+  objects.filter(o => o.layerId === l.id && !o.hiddenByGroup).forEach(applyColor);
+  // Also color grouped children assigned to the layer.
+  objects.filter(o => o.layerId === l.id && o.hiddenByGroup).forEach(applyColor);
+  updateLayersUI();
+  setStatus(`Đã đổi màu layer "${l.name}" và các vật thể thuộc layer.`);
+};
+
+window.toggleLayerVisibility = (id) => {
+  const l = layers.find(x => x.id === id);
+  if (l) {
+    l.visible = !l.visible;
+    objects.forEach(o => {
+      if (o.layerId === id) o.mesh.visible = l.visible;
+    });
+    updateLayersUI();
+  }
+};
+
+window.setCurrentLayer = (id) => {
+  currentLayerId = Number(id);
+  updateLayersUI();
+  const layer=layers.find(l=>l.id===currentLayerId);
+  setStatus(layer?`Layer hiện hành: ${layer.name} (${layer.color})`:`Đã chuyển layer hiện hành sang layer #${id}`);
+};
+
+// Event Listeners & Interaction
+function setupEvents() {
+  const canvas = document.getElementById('view-canvas');
+
+  let dragObject=false, dragStartWorld=new THREE.Vector3(), dragStartPos=new THREE.Vector3();
+  const xyPlane=new THREE.Plane(new THREE.Vector3(0,0,1),0);
+  function pointerWorld(e, plane=xyPlane){
+    const r=canvas.getBoundingClientRect();mouse.x=((e.clientX-r.left)/r.width)*2-1;mouse.y=-((e.clientY-r.top)/r.height)*2+1;
+    raycaster.setFromCamera(mouse,camera);const out=new THREE.Vector3();return raycaster.ray.intersectPlane(plane,out)?out:null;
+  }
+  canvas.addEventListener('pointerdown',e=>{
+    if(e.button!==0 && e.button!==2)return;
+    const r=canvas.getBoundingClientRect();
+    mouse.x=((e.clientX-r.left)/r.width)*2-1;
+    mouse.y=-((e.clientY-r.top)/r.height)*2+1;
+    raycaster.setFromCamera(mouse,camera);
+    const hits=raycaster.intersectObjects(objects.filter(o=>o.mesh.visible&&!o.hiddenByGroup).map(o=>o.mesh),true);
+    const hitObj=hits.length?(hits[0].object.userData.objData || hits[0].object.parent?.userData?.objData || hits[0].object.parent?.parent?.userData?.objData):null;
+    if(e.button===2 && hitObj){
+      if(!selectedObjects.includes(hitObj))setSelectionMany([hitObj],hitObj);
+      rotateObjectDrag=true;rotateDragLast={x:e.clientX,y:e.clientY};
+      controls.enabled=false;canvas.setPointerCapture(e.pointerId);e.preventDefault();return;
+    }
+    if(e.button===2)return;
+    if(drawMode){
+      const world=pointerWorld(e);if(!world)return;
+      let p=world.clone();p.z=0;
+      if((e.shiftKey||orthoEnabled)&&drawPoints.length){const prev=drawPoints[drawPoints.length-1],dx=p.x-prev.x,dy=p.y-prev.y;if(Math.abs(dx)>=Math.abs(dy))p.y=prev.y;else p.x=prev.x;}
+      if(drawMode==='rectangle'||drawMode==='circle'){if(drawPoints.length===0)drawPoints.push(p);else{drawPoints.push(p);finishDraw();}}
+      else if(drawMode==='line'){drawPoints.push(p);if(drawPoints.length>=2)finishDraw();}
+      else if(drawMode==='arc'){drawPoints.push(p);if(drawPoints.length>=3){makeArcFromPoints(drawPoints);cancelDraw();}else redrawPreview();}
+      else{drawPoints.push(p);redrawPreview();}
+      return;
+    }
+    if(hitObj){
+      if(e.ctrlKey||e.metaKey){
+        const set=new Set(selectedObjects);if(set.has(hitObj))set.delete(hitObj);else set.add(hitObj);
+        setSelectionMany([...set],hitObj);
+      }else if(!selectedObjects.includes(hitObj))setSelectionMany([hitObj],hitObj);
+      else{selectedObject=hitObj;preserveMultiSelection=true;selectObject(hitObj);preserveMultiSelection=false;applySelectionHighlight();if(selectedObjects.length>1)updateMultiProperties();}
+      if(currentMode==='rotate' && !(e.ctrlKey||e.metaKey)){
+        rotateObjectDrag=true;rotateDragLast={x:e.clientX,y:e.clientY};controls.enabled=false;canvas.setPointerCapture(e.pointerId);e.preventDefault();return;
+      }
+      if(currentMode==='scale' && !(e.ctrlKey||e.metaKey)){
+        scaleObjectDrag=true;scaleDragLastY=e.clientY;scaleDragStart=new Map((selectedObjects.length?selectedObjects:[hitObj]).map(o=>[o,o.mesh.scale.clone()]));controls.enabled=false;canvas.setPointerCapture(e.pointerId);e.preventDefault();return;
+      }
+      if(currentMode==='move' && !(e.ctrlKey||e.metaKey)){
+        const world=pointerWorld(e);
+        if(world){dragObject=true;controls.enabled=false;canvas.setPointerCapture(e.pointerId);dragStartWorld=world.clone();dragStartPos=hitObj.mesh.position.clone();dragStartPositions=new Map(selectedObjects.map(o=>[o,o.mesh.position.clone()]));}
+      }
+    }else if(!e.ctrlKey&&!e.metaKey)setSelectionMany([],null);
+  });
+  canvas.addEventListener('pointermove',e=>{
+    const world=pointerWorld(e);
+    if(world)document.getElementById('coords-display').textContent=`X: ${world.x.toFixed(2)} Y: ${world.y.toFixed(2)} Z: ${world.z.toFixed(2)}`;
+    if(rotateObjectDrag){
+      const dx=e.clientX-rotateDragLast.x,dy=e.clientY-rotateDragLast.y;
+      const targets=selectedObjects.length?selectedObjects:(selectedObject?[selectedObject]:[]);
+      targets.forEach(o=>{if(o.type!=='group'){o.mesh.rotation.z+=dx*0.01;o.mesh.rotation.x+=dy*0.01;}});
+      rotateDragLast={x:e.clientX,y:e.clientY};
+      if(selectedObject){gumballGroup.position.copy(selectedObject.mesh.position);refreshProperties();}
+      return;
+    }
+    if(scaleObjectDrag){
+      const factor=Math.max(0.01,Math.min(100,Math.exp((scaleDragLastY-e.clientY)*0.01)));
+      if(scaleDragStart)scaleDragStart.forEach((start,obj)=>obj.mesh.scale.set(Math.max(0.001,start.x*factor),Math.max(0.001,start.y*factor),Math.max(0.001,start.z*factor)));
+      if(selectedObject)refreshProperties();
+      return;
+    }
+    if(drawMode&&world){let p=world.clone();p.z=0;if((e.shiftKey||orthoEnabled)&&drawPoints.length){const prev=drawPoints[drawPoints.length-1],dx=p.x-prev.x,dy=p.y-prev.y;if(Math.abs(dx)>=Math.abs(dy))p.y=prev.y;else p.x=prev.x;}redrawPreview(p);return;}
+    if(dragObject&&world){
+      let dx=world.x-dragStartWorld.x,dy=world.y-dragStartWorld.y;
+      if(e.shiftKey){if(Math.abs(dx)>=Math.abs(dy))dy=0;else dx=0;}
+      const starts=dragStartPositions||new Map([[selectedObject,dragStartPos]]);
+      starts.forEach((pos,obj)=>obj.mesh.position.set(pos.x+dx,pos.y+dy,pos.z));
+      if(selectedObject)gumballGroup.position.copy(selectedObject.mesh.position);
+      refreshProperties();
+    }
+  });
+  const endPointer=()=>{if(dragObject||rotateObjectDrag||scaleObjectDrag){dragObject=false;rotateObjectDrag=false;scaleObjectDrag=false;scaleDragStart=null;controls.enabled=true;if(selectedObject)selectObject(selectedObject);if(selectedObjects.length>1)updateMultiProperties();}};
+  canvas.addEventListener('pointerup',endPointer);canvas.addEventListener('pointercancel',endPointer);
+  canvas.addEventListener('contextmenu',e=>{
+    const r=canvas.getBoundingClientRect();
+    mouse.x=((e.clientX-r.left)/r.width)*2-1;
+    mouse.y=-((e.clientY-r.top)/r.height)*2+1;
+    raycaster.setFromCamera(mouse,camera);
+    const hits=raycaster.intersectObjects(objects.filter(o=>o.mesh.visible&&!o.hiddenByGroup).map(o=>o.mesh),true);
+    const obj=hits.length?(hits[0].object.userData.objData||hits[0].object.parent?.userData?.objData||hits[0].object.parent?.parent?.userData?.objData):selectedObject;
+    if(obj)openObjectContextMenu(e,obj);else e.preventDefault();
+  });
+  // Viewport buttons
+  document.getElementById('view-persp').onclick = () => setViewport('persp');
+  document.getElementById('view-top').onclick = () => setViewport('top');
+  document.getElementById('view-front').onclick = () => setViewport('front');
+  document.getElementById('view-right').onclick = () => setViewport('right');
+
+  // Display Mode buttons
+  document.getElementById('mode-wireframe').onclick = () => setDisplayMode('wireframe');
+  document.getElementById('mode-shaded').onclick = () => setDisplayMode('shaded');
+  document.getElementById('mode-ghosted').onclick = () => setDisplayMode('ghosted');
+
+  // Grid toggle
+  document.getElementById('btn-grid').onclick = () => {
+    gridEnabled = !gridEnabled;
+    gridHelper.visible = gridEnabled;
+    document.getElementById('btn-grid').classList.toggle('active', gridEnabled);
+  };
+
+  document.querySelectorAll('[data-draw]').forEach(btn=>btn.onclick=()=>setDrawMode(btn.dataset.draw));
+  document.getElementById('btn-cancel-draw').onclick=cancelDraw;
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&drawMode){cancelDraw();setStatus('Đã hủy lệnh vẽ.');}
+    if(e.key==='Enter'&&drawMode==='polyline'&&(!e.target.matches('input')||!e.target.value.trim())){e.preventDefault();finishDraw();}
+  });
+  // Creation buttons
+  document.querySelectorAll('[data-create]').forEach(btn => {
+    btn.onclick = () => createObject(btn.dataset.create);
+  });
+
+  // Transform mode buttons
+  document.querySelectorAll('[data-mode]').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentMode = btn.dataset.mode;
+      setStatus(`Đang chọn chế độ: ${currentMode.toUpperCase()}`);
+    };
+  });
+
+  // Properties apply button
+  document.getElementById('prop-apply').onclick = () => {
+    if (!selectedObject) return;
+    selectedObject.name = document.getElementById('prop-name').value;
+    selectedObject.mesh.position.set(
+      parseFloat(document.getElementById('prop-px').value) || 0,
+      parseFloat(document.getElementById('prop-py').value) || 0,
+      parseFloat(document.getElementById('prop-pz').value) || 0
+    );
+    selectedObject.mesh.rotation.set(
+      THREE.MathUtils.degToRad(parseFloat(document.getElementById('prop-rx').value) || 0),
+      THREE.MathUtils.degToRad(parseFloat(document.getElementById('prop-ry').value) || 0),
+      THREE.MathUtils.degToRad(parseFloat(document.getElementById('prop-rz').value) || 0)
+    );
+    selectedObject.mesh.scale.set(
+      Math.max(0.001, parseFloat(document.getElementById('prop-sx').value) || 1),
+      Math.max(0.001, parseFloat(document.getElementById('prop-sy').value) || 1),
+      Math.max(0.001, parseFloat(document.getElementById('prop-sz').value) || 1)
+    );
+    const col = document.getElementById('prop-color').value;
+    selectedObject.color = col;
+    selectedObject.mesh.material.color.set(col);
+    gumballGroup.position.copy(selectedObject.mesh.position);
+    updateObjectsList();
+    setStatus('Đã cập nhật thông số đối tượng.');
+  };
+
+  // Delete button
+  document.getElementById('btn-delete').onclick = () => {
+    if (!selectedObject) return;
+    scene.remove(selectedObject.mesh);
+    objects = objects.filter(o => o !== selectedObject);
+    selectObject(null);
+    updateObjectsList();
+    setStatus('Đã xóa đối tượng.');
+  };
+
+  // File I/O
+  document.getElementById('btn-new').onclick = () => {
+    showModal('Tạo cảnh mới', 'Bạn có muốn xóa toàn bộ cảnh hiện tại không?', true, '', (val) => {
+      if (val !== null) {
+        objects.forEach(o => scene.remove(o.mesh));
+        objects = [];
+        selectObject(null);
+        updateObjectsList();
+        setDrawingName('Bản vẽ mới');
+        setStatus('Đã tạo cảnh mới.');
+      }
+    });
+  };
+
+  document.getElementById('btn-save').onclick = () => {
+    const saveData = {
+      app: 'VC@D',
+      version: 1.1,
+      drawingName,
+      objects: objects.map(o => ({
+        name: o.name,
+        type: o.type,
+        pos: [o.mesh.position.x, o.mesh.position.y, o.mesh.position.z],
+        rot: [o.mesh.rotation.x, o.mesh.rotation.y, o.mesh.rotation.z],
+        scale: [o.mesh.scale.x, o.mesh.scale.y, o.mesh.scale.z],
+        color: o.color,
+        layerId: o.layerId,
+        dxfLayer: o.dxfLayer || null,
+        dxfClosed: !!o.dxfClosed,
+        dxfPoints: String(o.type || '').startsWith('dxf-') && o.mesh.geometry?.attributes?.position
+          ? Array.from({ length: o.mesh.geometry.attributes.position.count }, (_, i) => { const p = o.mesh.geometry.attributes.position; return [p.getX(i), p.getY(i), p.getZ(i)]; })
+          : null
+      }))
+    };
+    const blob = new Blob([JSON.stringify(saveData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${sanitizeDrawingFilename(drawingName)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setStatus('Đã xuất file JSON thành công.');
+  };
+
+  document.getElementById('btn-open').onclick = () => document.getElementById('file-input').click();
+  document.getElementById('btn-import-append').onclick = () => document.getElementById('file-append-input').click();
+  document.getElementById('file-append-input').onchange = (e) => { const file=e.target.files&&e.target.files[0]; if(!file)return; const reader=new FileReader(); reader.onload=(ev)=>{try{const data=JSON.parse(ev.target.result);if(!Array.isArray(data.objects))throw new Error('File không có danh sách objects');data.objects.forEach((item,index)=>restoreSerializedObject(item,index+1));setStatus(`Đã nhập thêm ${data.objects.length} đối tượng.`);}catch(err){showModal('Không thể nhập file',err.message||'File JSON không hợp lệ.');}finally{e.target.value='';}};reader.readAsText(file); };
+  document.getElementById('file-input').onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+        const fileBase = (file.name || 'Bản vẽ').replace(/\.[^.]+$/, '');
+        setDrawingName(data.drawingName || fileBase);
+        objects.forEach(o => scene.remove(o.mesh));
+        objects = [];
+        selectObject(null);
+        if (data.objects) {
+          data.objects.forEach((item, index) => restoreSerializedObject(item, index + 1));
+        }
+        setStatus('Đã mở file JSON thành công.');
+      } catch (err) {
+        showModal('Lỗi đọc file', 'File JSON không hợp lệ hoặc bị lỗi cấu trúc.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  // Advanced Tools handlers
+  document.getElementById('btn-mirror').onclick = () => executeCommand('mirror');
+  document.getElementById('btn-array').onclick = () => executeCommand('array');
+  document.getElementById('btn-extrude').onclick = () => executeCommand('extrude');
+  document.getElementById('btn-bool-union').onclick = () => executeCommand('union');
+  document.getElementById('btn-bool-diff').onclick = () => executeCommand('difference');
+  document.getElementById('btn-bool-inter').onclick = () => executeCommand('intersection');
+
+  // Command Line Autocomplete & Execution
+  const cmdInput = document.getElementById('command-input');
+  const autocompleteList = document.getElementById('autocomplete-list');
+
+  cmdInput.oninput = (e) => {
+    const val = e.target.value.trim().toLowerCase();
+    if (!val) {
+      autocompleteList.style.display = 'none';
+      return;
+    }
+    const matches = AVAILABLE_COMMANDS.filter(c => c.cmd.includes(val) || c.desc.toLowerCase().includes(val));
+    if (matches.length > 0) {
+      autocompleteList.innerHTML = matches.map(m => `<div class="autocomplete-item" onclick="selectCommandItem('${m.cmd}')"><span><b>${m.cmd}</b></span><span class="text-gray-400 text-[10px]">${m.desc}</span></div>`).join('');
+      autocompleteList.style.display = 'block';
+    } else {
+      autocompleteList.style.display = 'none';
+    }
+  };
+
+  window.selectCommandItem = (cmd) => {
+    cmdInput.value = cmd;
+    autocompleteList.style.display = 'none';
+    cmdInput.focus();
+  };
+
+  cmdInput.addEventListener('keydown', (e) => {
+    if(e.key==='Enter' && drawMode==='polyline' && !cmdInput.value.trim()){e.preventDefault();finishDraw();return;}
+    if(e.key==='Shift'){
+      const val=cmdInput.value.trim().toLowerCase();
+      if(val){
+        const aliases={b:'box',rec:'rectangle',rect:'rectangle',l:'line',pl:'polyline',c:'circle',cr:'circle',cd:'circle',mirron:'mirror',mi:'mirror',ex:'extrude',del:'delete'};
+        const first=val.split(/[\\s,;]+/)[0];
+        const full=aliases[first]||AVAILABLE_COMMANDS.map(x=>x.cmd.split(' / ')[0]).find(x=>x.startsWith(first));
+        if(full){cmdInput.value=full+(val.includes(' ')?val.slice(first.length):'');cmdInput.setSelectionRange(cmdInput.value.length,cmdInput.value.length);autocompleteList.style.display='none';}
+      }
+      return;
+    }
+    if (e.key === 'Enter') {
+      autocompleteList.style.display = 'none';
+      executeCommand(cmdInput.value.trim());
+      cmdInput.value = '';
+    }
+  });
+
+  document.getElementById('btn-run-command').onclick = () => {
+    autocompleteList.style.display = 'none';
+    executeCommand(cmdInput.value.trim());
+    cmdInput.value = '';
+  };
+}
+
+// Viewport modes
+function setViewport(v) {
+  currentView = v;
+  ['persp', 'top', 'front', 'right'].forEach(id => {
+    const btn = document.getElementById(`view-${id}`);
+    if (id === v) {
+      btn.className = 'px-2.5 py-1 rounded bg-[#2e3856] text-white font-medium';
+    } else {
+      btn.className = 'px-2.5 py-1 rounded text-gray-400 hover:text-white';
+    }
+  });
+
+  const tag = document.getElementById('view-tag');
+  if (v === 'persp') {
+    tag.textContent = 'Perspective';
+    camera.up.set(0, 0, 1); camera.position.set(15, -18, 14);
+    controls.enabled = true;
+    controls.enableRotate = true;
+  } else if (v === 'top') {
+    tag.textContent = 'Top (XY)';
+    camera.up.set(0, 1, 0); camera.position.set(0, 0, 25);
+    camera.lookAt(0, 0, 0);
+    controls.enabled = true;
+    controls.enableRotate = false;
+  } else if (v === 'front') {
+    tag.textContent = 'Front (XZ)';
+    camera.up.set(0, 0, 1); camera.position.set(0, -25, 0);
+    camera.lookAt(0, 0, 0);
+    controls.enabled = true;
+    controls.enableRotate = false;
+  } else if (v === 'right') {
+    tag.textContent = 'Right (YZ)';
+    camera.up.set(0, 0, 1); camera.position.set(25, 0, 0);
+    camera.lookAt(0, 0, 0);
+    controls.enabled = true;
+    controls.enableRotate = false;
+  }
+  controls.target.set(0, 0, 0);
+  controls.update();
+  setStatus(v === 'persp' ? 'Perspective: có thể xoay camera bằng chuột phải; Move/Rotate dùng để chỉnh vật thể.' : `Góc nhìn 2D ${tag.textContent}: đã khóa xoay camera; vẫn có thể pan/zoom và di chuyển vật thể.`);
+}
+
+function setDisplayMode(mode) {
+  displayMode = mode;
+  ['wireframe', 'shaded', 'ghosted'].forEach(m => {
+    const btn = document.getElementById(`mode-${m}`);
+    if (m === mode) {
+      btn.className = 'px-2.5 py-1 rounded bg-[#2e3856] text-white font-medium';
+    } else {
+      btn.className = 'px-2.5 py-1 rounded text-gray-400 hover:text-white';
+    }
+  });
+
+  objects.forEach(o => {
+    if (mode === 'wireframe') {
+      o.mesh.material.wireframe = true;
+      o.mesh.material.transparent = false;
+      o.mesh.material.opacity = 1.0;
+    } else if (mode === 'shaded') {
+      o.mesh.material.wireframe = false;
+      o.mesh.material.transparent = false;
+      o.mesh.material.opacity = 1.0;
+    } else if (mode === 'ghosted') {
+      o.mesh.material.wireframe = false;
+      o.mesh.material.transparent = true;
+      o.mesh.material.opacity = 0.4;
+    }
+    o.mesh.material.needsUpdate = true;
+  });
+  setStatus(`Chế độ hiển thị: ${mode.toUpperCase()}`);
+}
+
+// Command Parser & Executor
+function commandModal(title,desc,placeholder,callback){showModal(title,desc,false,placeholder,callback);}
+function createSizedPrimitive(type,values){
+  const [l,w,h]=values.map(Number);
+  if(!values.every(v=>Number.isFinite(Number(v))&&Number(v)>0)){showModal('Thông số không hợp lệ','Dài, rộng và cao phải lớn hơn 0.');return;}
+  createObject(type,{dims:[l,w,h],pos:[0,0,h/2]});
+}
+function executeCommand(rawCmd) {
+  if(!rawCmd)return;
+  const normalized=rawCmd.trim().toLowerCase();
+  const parts=normalized.split(/[\s,;]+/).filter(Boolean);
+  let cmd=parts.shift()||'',args=parts;
+  const aliases={b:'box',rec:'rectangle',rect:'rectangle',l:'line',pl:'polyline',c:'circle',cr:'circle',cd:'circle',a:'arc',dim:'dim',d:'dim',mirron:'mirror',mi:'mirror',m:'move',ro:'rotate',sc:'scale',ex:'extrude',del:'delete',u:'union',dif:'difference',inter:'intersection',imp:'import'};
+  let alias=cmd;
+  if(cmd==='c'&&['r','d'].includes(args[0])){alias=args[0]==='d'?'cd':'cr';args=args.slice(1);cmd='circle';}
+  else cmd=aliases[cmd]||cmd;
+  const nums=args.map(Number);
+  const validNums=args.length>0&&nums.every(n=>Number.isFinite(n));
+  const ask=(title,desc,placeholder,cb)=>commandModal(title,desc,placeholder,val=>{if(val===true||val===null)return;const values=val.split(/[\s,;]+/).filter(Boolean).map(Number);if(values.some(v=>!Number.isFinite(v))){showModal('Sai thông số','Hãy nhập số, phân cách bằng dấu phẩy.');return;}cb(values);});
+  switch(cmd){
+    case 'box':case 'sphere':case 'cylinder':case 'cone':case 'torus':case 'plane':{
+      const n=cmd==='sphere'?1:cmd==='torus'?2:3;
+      if(validNums&&nums.length>=n){createSizedPrimitive(cmd,cmd==='sphere'?[nums[0]*2,nums[0]*2,nums[0]*2]:cmd==='torus'?[nums[0]*2,nums[0]*2,nums[1]*2]:nums.slice(0,3));break;}
+      const labels=cmd==='sphere'?'Nhập đường kính':cmd==='torus'?'Nhập đường kính ngoài, đường kính ống':'Nhập dài, rộng, cao (m)';
+      ask(cmd.toUpperCase(),labels,cmd==='sphere'?'2':cmd==='torus'?'3,0.8':'2,2,2',v=>createSizedPrimitive(cmd,cmd==='sphere'?[v[0],v[0],v[0]]:cmd==='torus'?[v[0],v[0],v[1]]:v.slice(0,3)));break;
+    }
+    case 'union':case 'difference':case 'intersection': showModal(cmd.toUpperCase(),cmd==='union'?'Boolean Union gộp các khối giao nhau thành một khối.':cmd==='difference'?'Boolean Difference trừ khối cắt khỏi khối chính.':'Boolean Intersection chỉ giữ phần thể tích giao nhau.','');break;
+    case 'group':groupSelected();break;
+    case 'ungroup':ungroupSelected();break;
+    case 'arc':setDrawMode('arc');break;
+    case 'ortho':orthoEnabled=!orthoEnabled;document.getElementById('btn-ortho').textContent=`Ortho: ${orthoEnabled?'ON':'OFF'}`;document.getElementById('btn-ortho').classList.toggle('active',orthoEnabled);setStatus(`Ortho ${orthoEnabled?'ON':'OFF'}`);break;
+    case 'exportdxf':exportDXF();break;
+    case 'exportobj':exportOBJ();break;
+    case 'line':{
+      const length=validNums?nums[0]:null;
+      if(length!==null){createLineByLength(length);break;}
+      ask('LINE','Nhập chiều dài (m), hoặc để trống lệnh để vẽ bằng chuột.','10',v=>createLineByLength(v[0]));break;
+    }
+    case 'rectangle':{
+      if(validNums&&nums.length>=2){createRectangleBySize(nums[0],nums[1]);break;}
+      ask('RECTANGLE / REC','Nhập dài, rộng (m). Ví dụ: 10,5','10,5',v=>createRectangleBySize(v[0],v[1]));break;
+    }
+    case 'circle':{
+      let r=validNums?nums[0]:null;
+      if(alias==='cd'&&r!==null)r/=2;
+      if(alias==='cr'&&r!==null){}
+      if(r!==null){createCircleByRadius(r);break;}
+      const label=alias==='cd'?'Nhập đường kính (m)':alias==='cr'?'Nhập bán kính (m)':'Nhập bán kính (m). Có thể dùng C R hoặc C D để chọn kiểu.';
+      ask('CIRCLE / C','Nhập bán kính hoặc đường kính theo lệnh: C 5 = R5, CR 5 = R5, CD 10 = D10',alias==='cd'?'10':'5',v=>createCircleByRadius(alias==='cd'?v[0]/2:v[0]));break;
+    }
+    case 'polyline':setDrawMode('polyline');break;
+    case 'extrude':{
+      const h=validNums?nums[0]:Number(document.getElementById('draw-height').value);
+      if(Number.isFinite(h)&&h!==0)extrudeSelected(h);else ask('EXTRUDE','Nhập chiều cao đùn (m)','2',v=>extrudeSelected(v[0]));break;
+    }
+    case 'dim': startDimensionCommand();break;
+    case 'import': document.getElementById('file-append-input').click();break;
+    case 'rotate':{
+      if(validNums && nums.length){ if(!selectedObject){showModal('ROTATE','Chọn đối tượng trước.');break;} const deg=nums[0],axis=(args[1]||'z').toLowerCase();const rad=THREE.MathUtils.degToRad(deg);if(axis==='x')selectedObject.mesh.rotation.x+=rad;else if(axis==='y')selectedObject.mesh.rotation.y+=rad;else selectedObject.mesh.rotation.z+=rad;refreshProperties();setStatus(`ROTATE: xoay ${deg}° quanh trục ${axis.toUpperCase()}.`);break;}
+      currentMode=cmd;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===cmd));setStatus('ROTATE: kéo chuột trái trên đối tượng để xoay; hoặc nhập ROTATE 45 Z.');break;
+    }
+    case 'scale':{
+      if(validNums && nums.length){ if(!selectedObject){showModal('SCALE','Chọn đối tượng trước.');break;} const f=nums[0];if(!(f>0)){showModal('SCALE','Hệ số tỷ lệ phải lớn hơn 0.');break;}selectedObject.mesh.scale.multiplyScalar(f);refreshProperties();setStatus(`SCALE: hệ số ${f}.`);break;}
+      currentMode=cmd;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===cmd));setStatus('SCALE: kéo chuột trái lên/xuống trên đối tượng; hoặc nhập SCALE 2.');break;
+    }
+    case 'move':
+      if(validNums && nums.length>=2){if(!selectedObject){showModal('MOVE','Chọn đối tượng trước.');break;}selectedObject.mesh.position.x+=nums[0];selectedObject.mesh.position.y+=nums[1];selectedObject.mesh.position.z+=nums[2]||0;refreshProperties();setStatus('MOVE: đã dịch chuyển đối tượng.');break;}
+      currentMode=cmd;document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===cmd));setStatus('MOVE: chọn đối tượng và kéo chuột; có thể nhập MOVE dx dy dz.');break;
+    case 'top':setViewport('top');break;case 'front':setViewport('front');break;case 'right':setViewport('right');break;case 'perspective':setViewport('persp');break;
+    case 'wireframe':case 'shaded':case 'ghosted':setDisplayMode(cmd);break;
+    case 'delete':if(selectedObject)document.getElementById('btn-delete').click();else showModal('DELETE','Chọn đối tượng trước.');break;
+    case 'mirror':{
+      if(!selectedObject){showModal('MIRROR','Chọn đối tượng cần đối xứng.');return;}
+      commandModal('MIRROR','Nhập trục đối xứng X, Y hoặc Z.','X',val=>{
+        if(val===null||val===true)return;
+        const axis=String(val).trim().toUpperCase(),o=selectedObject,p=o.mesh.position.clone();
+        if(!['X','Y','Z'].includes(axis)){showModal('MIRROR','Trục hợp lệ: X, Y hoặc Z.');return;}
+        if(axis==='X')p.x=-p.x;else if(axis==='Y')p.y=-p.y;else p.z=-p.z;
+        createObject(o.type,{name:o.name+'_Mirror',pos:p.toArray(),rot:[o.mesh.rotation.x,o.mesh.rotation.y,o.mesh.rotation.z],scale:[o.mesh.scale.x,o.mesh.scale.y,o.mesh.scale.z],color:o.color});
+        setStatus(`MIRROR: đã tạo bản sao đối xứng qua mặt phẳng vuông góc trục ${axis}.`);
+      });break;
+    }
+    case 'array':if(!selectedObject){showModal('ARRAY','Chọn đối tượng trước.');return;}ask('ARRAY','Nhập số bản sao và khoảng cách X: số lượng, khoảng cách','3,3',v=>{const base=selectedObject;for(let i=1;i<Math.max(1,v[0]);i++)createObject(base.type,{name:base.name+'_Array'+i,pos:[base.mesh.position.x+i*(v[1]||3),base.mesh.position.y,base.mesh.position.z],scale:[base.mesh.scale.x,base.mesh.scale.y,base.mesh.scale.z],color:base.color});});break;
+    case 'help':showModal('Lệnh CAD','BOX L,W,H · REC L,W · LINE L · ARC (3 điểm) · DIM 10 · C R · PL · EXTRUDE H · MOVE dx dy dz · ROTATE 45 Z · SCALE 2 · ORTHO · IMPORT · DELETE. UNION gộp khối, DIFFERENCE trừ khối, INTERSECTION giữ phần giao nhau; phép Boolean hình học chưa được triển khai trong bản này.');break;
+    default:showModal('Không nhận diện lệnh',`Không tìm thấy "${rawCmd}". Thử BOX, REC, LINE, C, CR, CD, PL, EXTRUDE, MIRROR hoặc HELP.`);
+  }
+}
+function startDimensionCommand(){
+  commandModal('DIM','Nhập chiều dài kích thước (m) để tạo ghi chú nhanh. Để đo trực tiếp theo 2 điểm, dùng DIM pick trong bản nâng cấp tiếp theo.','10',val=>{
+    if(val===null||val===true)return;const d=Number(String(val).trim());if(!Number.isFinite(d)||d<=0){showModal('DIM','Chiều dài phải lớn hơn 0.');return;}
+    const midX=d/2;const pts=[new THREE.Vector3(0,0,0.03),new THREE.Vector3(d,0,0.03)];
+    const geom=new THREE.BufferGeometry().setFromPoints(pts);const mesh=new THREE.Line(geom,new THREE.LineBasicMaterial({color:'#ffcc66'}));
+    const obj={id:objectIdCounter++,name:`Dim_${String(objectIdCounter).padStart(2,'0')}`,type:'dimension',mesh,layerId:currentLayerId,color:'#ffcc66',shapePoints:[[0,0],[d,0]],closed:false,dimensionValue:d};
+    mesh.userData={objData:obj};scene.add(mesh);objects.push(obj);
+    const canvas=document.createElement('canvas');canvas.width=256;canvas.height=64;const ctx=canvas.getContext('2d');ctx.fillStyle='#ffcc66';ctx.font='bold 34px Arial';ctx.textAlign='center';ctx.fillText(`${d.toFixed(2)} m`,128,44);
+    const tex=new THREE.CanvasTexture(canvas);const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));sprite.scale.set(Math.max(1.2,d*.35),.3,1);sprite.position.set(midX,.25,.05);mesh.add(sprite);
+    selectObject(obj);updateObjectsList();setStatus(`DIM: đã tạo đường kích thước ${d} m.`);
+  });
+}
+function createLineByLength(length){
+  if(!Number.isFinite(length)||length<=0){showModal('LINE','Chiều dài phải lớn hơn 0.');return;}
+  const geom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0.02),new THREE.Vector3(length,0,0.02)]);
+  const mesh=new THREE.Line(geom,new THREE.LineBasicMaterial({color:'#5c7cfa'}));
+  const obj={id:objectIdCounter++,name:`Line_${String(objectIdCounter).padStart(2,'0')}`,type:'line2d',mesh,layerId:currentLayerId,color:'#5c7cfa',closed:false};
+  mesh.userData={objData:obj};scene.add(mesh);objects.push(obj);selectObject(obj);updateObjectsList();setStatus(`LINE: dài ${length} m.`);
+}
+function createRectangleBySize(length,width){
+  if(!(length>0&&width>0)){showModal('REC','Dài và rộng phải lớn hơn 0.');return;}
+  const sh=new THREE.Shape();sh.moveTo(0,0);sh.lineTo(length,0);sh.lineTo(length,width);sh.lineTo(0,width);sh.closePath();
+  const mesh=new THREE.Mesh(new THREE.ShapeGeometry(sh),new THREE.MeshStandardMaterial({color:'#5c7cfa',side:THREE.DoubleSide,transparent:true,opacity:.55}));
+  mesh.position.z=.005;
+  const obj={id:objectIdCounter++,name:`Rectangle_${String(objectIdCounter).padStart(2,'0')}`,type:'rectangle',mesh,layerId:currentLayerId,color:'#5c7cfa',shapePoints:[[0,0],[length,0],[length,width],[0,width]],closed:true};
+  mesh.userData={objData:obj};scene.add(mesh);objects.push(obj);selectObject(obj);updateObjectsList();setStatus(`REC: dài ${length} m, rộng ${width} m.`);
+}
+function createCircleByRadius(radius){
+  if(!(radius>0)){showModal('CIRCLE','Bán kính phải lớn hơn 0.');return;}
+  const sh=new THREE.Shape();sh.absarc(0,0,radius,0,Math.PI*2,false);
+  const mesh=new THREE.Mesh(new THREE.ShapeGeometry(sh),new THREE.MeshStandardMaterial({color:'#5c7cfa',side:THREE.DoubleSide,transparent:true,opacity:.55}));
+  mesh.position.z=.005;
+  const shapePoints=Array.from({length:64},(_,i)=>[radius*Math.cos(i*Math.PI/32),radius*Math.sin(i*Math.PI/32)]);
+  const obj={id:objectIdCounter++,name:`Circle_${String(objectIdCounter).padStart(2,'0')}`,type:'circle',mesh,layerId:currentLayerId,color:'#5c7cfa',shapePoints,closed:true};
+  mesh.userData={objData:obj};scene.add(mesh);objects.push(obj);selectObject(obj);updateObjectsList();setStatus(`CIRCLE: bán kính ${radius} m.`);
+}
+
+
+function applySelectionHighlight(){
+  objects.forEach(o=>{
+    if(!o.mesh) return;
+    const selected=selectedObjects.includes(o)||o===selectedObject;
+    o.mesh.traverse(node=>{
+      if(!node.isMesh||!node.material)return;
+      const mats=Array.isArray(node.material)?node.material:[node.material];
+      mats.forEach(mat=>{
+        if(!mat.userData)mat.userData={};
+        if(mat.userData._msOriginalEmissive===undefined && mat.emissive){
+          mat.userData._msOriginalEmissive=mat.emissive.getHex();
+        }
+        if(mat.emissive){
+          mat.emissive.setHex(selected?0x8a6a00:(mat.userData._msOriginalEmissive??0x000000));
+          mat.emissiveIntensity=selected?0.65:0.0;
+          mat.needsUpdate=true;
+        } else if(mat.color && mat.userData._msOriginalColor===undefined){
+          mat.userData._msOriginalColor=mat.color.getHex();
+        }
+      });
+    });
+  });
+}
+function setSelectionMany(items, primary=items[items.length-1]||null) {
+  selectedObjects=[...new Set(items)].filter(Boolean);
+  selectedObject=primary;
+  preserveMultiSelection=true;
+  if(primary) selectObject(primary); else selectObject(null);
+  preserveMultiSelection=false;
+  applySelectionHighlight();
+  updateObjectsList();
+  const tag=document.getElementById('sel-tag');
+  if(tag)tag.textContent=selectedObjects.length>1?`Đã chọn ${selectedObjects.length} đối tượng`:primary?`Đã chọn: ${primary.name}`:'Chưa chọn đối tượng';
+  if(selectedObjects.length>1)updateMultiProperties();
+}
+function updateMultiProperties() {
+  if(selectedObjects.length<2)return;
+  const all=selectedObjects;
+  const box=new THREE.Box3();
+  all.forEach(o=>{o.mesh.updateMatrixWorld(true);box.expandByObject(o.mesh);});
+  const size=new THREE.Vector3();box.getSize(size);
+  ['prop-dim-x','prop-dim-y','prop-dim-z'].forEach((id,i)=>{const el=document.getElementById(id);if(el)el.value=[size.x,size.y,size.z].map(v=>v.toFixed(3))[i];});
+  ['prop-px','prop-py','prop-pz','prop-rx','prop-ry','prop-rz','prop-sx','prop-sy','prop-sz','prop-name','prop-color'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
+  setStatus(`${all.length} đối tượng được chọn. Properties hiển thị bounding box tổng; nhập chỉnh sửa riêng từng đối tượng bằng cách bỏ chọn nhóm.`);
+}
+function groupSelected() {
+  if(selectedObjects.length<2){showModal('Group','Hãy chọn ít nhất 2 đối tượng bằng Ctrl + nhấp trong danh sách.');return;}
+  const group=new THREE.Group();group.name=`Group_${objectIdCounter}`;
+  scene.add(group);
+  const members=[...selectedObjects];
+  // Preserve world transforms when reparenting.
+  members.forEach(o=>{o.mesh.updateMatrixWorld(true);scene.attach(o.mesh);group.attach(o.mesh);});
+  const obj={id:objectIdCounter++,name:group.name,type:'group',mesh:group,layerId:currentLayerId,color:'#5c7cfa',members};
+  group.userData={objData:obj};objects.push(obj);
+  members.forEach(o=>{o.hiddenByGroup=true;o.parentGroup=obj;o.layerId=currentLayerId;o.mesh.visible=true;});
+  obj.members=members;
+  selectObject(obj);selectedObjects=[obj];applySelectionHighlight();updateObjectsList();updateLayersUI();
+  setStatus(`Đã tạo ${obj.name}; ${members.length} đối tượng nằm trong cùng Group và Layer.`);
+}
+function ungroupSelected(){
+  const targets=selectedObjects.length?selectedObjects:selectedObject?[selectedObject]:[];
+  const g=targets.find(o=>o.type==='group');
+  if(!g){showModal('Ungroup','Chọn một Group trước.');return;}
+  const children=[...g.mesh.children];
+  children.forEach(ch=>scene.attach(ch));
+  scene.remove(g.mesh);objects=objects.filter(o=>o!==g);
+  g.members?.forEach(o=>{o.hiddenByGroup=false;o.parentGroup=null;});
+  selectObject(null);selectedObjects=[];updateObjectsList();setStatus('Đã bỏ Group.');
+}
+function exportBlob(filename,content,type='application/octet-stream'){
+  const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function sanitizeDrawingFilename(name) {
+  return String(name || 'Bản vẽ').trim().replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').replace(/[. ]+$/g, '') || 'Bản vẽ';
+}
+function fileStem(name) { return String(name || 'Bản vẽ').replace(/\.[^.]+$/, '').trim() || 'Bản vẽ'; }
+function setDrawingName(name) {
+  drawingName = String(name || '').trim().slice(0, 100) || 'Bản vẽ mới';
+  const display = document.getElementById('drawing-name-display');
+  if (display) display.textContent = drawingName;
+  const wrap = document.getElementById('drawing-title-wrap');
+  if (wrap) wrap.title = `Tên bản vẽ: ${drawingName}`;
+  document.title = `${drawingName} — VC@D`;
+  const input = document.getElementById('setting-drawing-name');
+  if (input && document.getElementById('ui-settings-modal')?.classList.contains('hidden')) input.value = drawingName;
+}
+function applyAppearance(settings, persist = false) {
+  currentUiSettings = {
+    menubarColor: /^#[0-9a-fA-F]{6}$/.test(settings.menubarColor || '') ? settings.menubarColor : DEFAULT_UI_SETTINGS.menubarColor,
+    backgroundColor: /^#[0-9a-fA-F]{6}$/.test(settings.backgroundColor || '') ? settings.backgroundColor : DEFAULT_UI_SETTINGS.backgroundColor,
+    showDrawingName: settings.showDrawingName !== false
+  };
+  const header = document.getElementById('top-menubar');
+  const viewport = document.getElementById('viewport-container');
+  const main = viewport?.parentElement;
+  if (header) header.style.backgroundColor = currentUiSettings.menubarColor;
+  if (viewport) viewport.style.backgroundColor = currentUiSettings.backgroundColor;
+  if (main) main.style.backgroundColor = currentUiSettings.backgroundColor;
+  if (scene) scene.background = new THREE.Color(currentUiSettings.backgroundColor);
+  const titleWrap = document.getElementById('drawing-title-wrap');
+  if (titleWrap) titleWrap.style.display = currentUiSettings.showDrawingName ? 'flex' : 'none';
+  if (persist) {
+    savedUiSettings = { ...currentUiSettings };
+    try { localStorage.setItem('vcad-ui-settings', JSON.stringify(savedUiSettings)); } catch (_) {}
+  }
+}
+function readSettingsControls() {
+  return {
+    menubarColor: document.getElementById('setting-menubar-color').value,
+    backgroundColor: document.getElementById('setting-background-color').value,
+    showDrawingName: document.getElementById('setting-show-drawing-name').checked
+  };
+}
+function populateSettingsControls(settings, name = drawingName) {
+  document.getElementById('setting-menubar-color').value = settings.menubarColor || DEFAULT_UI_SETTINGS.menubarColor;
+  document.getElementById('setting-background-color').value = settings.backgroundColor || DEFAULT_UI_SETTINGS.backgroundColor;
+  document.getElementById('setting-show-drawing-name').checked = settings.showDrawingName !== false;
+  document.getElementById('setting-drawing-name').value = name || 'Bản vẽ mới';
+}
+function initUiCustomization() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('vcad-ui-settings') || 'null');
+    if (stored && typeof stored === 'object') {
+      currentUiSettings = { ...DEFAULT_UI_SETTINGS, ...stored };
+      savedUiSettings = { ...currentUiSettings };
+    }
+  } catch (_) { currentUiSettings = { ...DEFAULT_UI_SETTINGS }; savedUiSettings = { ...DEFAULT_UI_SETTINGS }; }
+  applyAppearance(currentUiSettings, false);
+  setDrawingName('Bản vẽ mới');
+
+  const modal = document.getElementById('ui-settings-modal');
+  const preview = () => {
+    applyAppearance(readSettingsControls(), false);
+    const newName = document.getElementById('setting-drawing-name').value;
+    const display = document.getElementById('drawing-name-display');
+    if (display) display.textContent = newName.trim() || 'Bản vẽ mới';
+  };
+  document.getElementById('btn-ui-options').addEventListener('click', () => {
+    populateSettingsControls(savedUiSettings, drawingName);
+    modal.classList.remove('hidden');
+  });
+  document.getElementById('setting-menubar-color').addEventListener('input', preview);
+  document.getElementById('setting-background-color').addEventListener('input', preview);
+  document.getElementById('setting-show-drawing-name').addEventListener('change', preview);
+  document.getElementById('setting-drawing-name').addEventListener('input', preview);
+  document.getElementById('btn-settings-apply').addEventListener('click', () => {
+    applyAppearance(readSettingsControls(), true);
+    setDrawingName(document.getElementById('setting-drawing-name').value);
+    modal.classList.add('hidden');
+    setStatus('Đã áp dụng tùy chọn giao diện và tên bản vẽ.');
+  });
+  document.getElementById('btn-settings-cancel').addEventListener('click', () => {
+    applyAppearance(savedUiSettings, false);
+    setDrawingName(drawingName);
+    populateSettingsControls(savedUiSettings, drawingName);
+    modal.classList.add('hidden');
+  });
+  document.getElementById('btn-settings-reset').addEventListener('click', () => {
+    populateSettingsControls(DEFAULT_UI_SETTINGS, drawingName);
+    applyAppearance(DEFAULT_UI_SETTINGS, false);
+    preview();
+  });
+  modal.addEventListener('click', e => {
+    if (e.target === modal) {
+      applyAppearance(savedUiSettings, false);
+      populateSettingsControls(savedUiSettings, drawingName);
+      modal.classList.add('hidden');
+    }
+  });
+  document.getElementById('btn-import-dxf').addEventListener('click', () => document.getElementById('file-dxf-input').click());
+  document.getElementById('file-dxf-input').addEventListener('change', e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (ext === 'dwg') {
+      showModal('Định dạng DWG chưa được hỗ trợ trực tiếp', 'Hãy mở file DWG trong AutoCAD/ODA File Converter hoặc phần mềm CAD tương thích rồi dùng Save As / Export để lưu thành DXF (ASCII). Sau đó chọn file DXF này trong VC@D.');
+      e.target.value = '';
+      return;
+    }
+    if (ext !== 'dxf') {
+      showModal('Không đúng định dạng', 'VC@D nhận file .dxf. File JSON vẫn có thể mở bằng nút Mở.');
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const parsed = parseAsciiDxf(String(ev.target.result || ''));
+        if (!parsed.entities.length) {
+          const skipped = parsed.unsupported.length ? ` Các loại entity chưa hỗ trợ: ${[...new Set(parsed.unsupported)].slice(0, 8).join(', ')}.` : '';
+          throw new Error('Không tìm thấy entity DXF mà VC@D hỗ trợ trong file.' + skipped);
+        }
+        const doImport = () => {
+          objects.forEach(o => scene.remove(o.mesh));
+          objects = [];
+          selectObject(null);
+          const imported = [];
+          parsed.entities.forEach((spec, idx) => imported.push(addDxfEntity(spec, idx + 1)));
+          setDrawingName(fileStem(file.name));
+          updateObjectsList();
+          if (imported.length) selectObject(imported[0]);
+          fitCameraToObjects(imported);
+          const ignored = parsed.unsupported.length ? ` ${parsed.unsupported.length} entity chưa hỗ trợ đã được bỏ qua.` : '';
+          setStatus(`Đã mở ${file.name}: nhập ${imported.length} entity DXF.${ignored}`);
+          if (parsed.unsupported.length) showModal('Đã nhập DXF có một số entity bị bỏ qua', `Đã nhập ${imported.length} đối tượng. Chưa hỗ trợ: ${[...new Set(parsed.unsupported)].slice(0, 12).join(', ')}.`);
+        };
+        if (objects.length) showModal('Mở bản vẽ DXF', `Mở “${file.name}” sẽ thay thế ${objects.length} đối tượng đang có. Bạn có muốn tiếp tục?`, true, '', val => { if (val !== null) doImport(); });
+        else doImport();
+      } catch (err) {
+        showModal('Không thể mở DXF', err && err.message ? err.message : 'File DXF không hợp lệ.');
+      } finally {
+        e.target.value = '';
+      }
+    };
+    reader.onerror = () => { showModal('Không thể đọc file', 'Windows không thể đọc nội dung file DXF này.'); e.target.value = ''; };
+    reader.readAsText(file);
+  });
+}
+function dxfValue(block, code, fallback = 0) {
+  const pair = block.find(p => p.code === code);
+  if (!pair) return fallback;
+  const n = Number(pair.value);
+  return Number.isFinite(n) ? n : fallback;
+}
+function dxfVerticesFromPairs(pairs, elevation = 0) {
+  const pts = [];
+  let current = null;
+  for (const p of pairs) {
+    if (p.code === 10) {
+      current = { x: Number(p.value) || 0, y: 0, z: elevation };
+      pts.push(current);
+    } else if (p.code === 20 && current) current.y = Number(p.value) || 0;
+    else if (p.code === 30 && current) current.z = Number(p.value) || 0;
+  }
+  return pts;
+}
+function parseAsciiDxf(text) {
+  if (/AutoCAD Binary DXF/i.test(String(text).slice(0, 40))) throw new Error('File DXF nhị phân không được hỗ trợ. Hãy xuất DXF dạng ASCII.');
+  const raw = String(text).replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n');
+  const pairs = [];
+  for (let i = 0; i + 1 < raw.length; i += 2) {
+    const code = Number(raw[i].trim());
+    if (Number.isInteger(code)) pairs.push({ code, value: raw[i + 1].trim() });
+  }
+  let start = -1, end = -1;
+  for (let i = 0; i < pairs.length - 1; i++) {
+    if (pairs[i].code === 0 && pairs[i].value.toUpperCase() === 'SECTION' && pairs[i + 1].code === 2 && pairs[i + 1].value.toUpperCase() === 'ENTITIES') { start = i + 2; break; }
+  }
+  if (start < 0) throw new Error('Không tìm thấy mục ENTITIES. Hãy lưu DXF dạng ASCII từ phần mềm CAD.');
+  for (let i = start; i < pairs.length; i++) { if (pairs[i].code === 0 && pairs[i].value.toUpperCase() === 'ENDSEC') { end = i; break; } }
+  if (end < 0) throw new Error('Cấu trúc DXF không có ENDSEC.');
+  const blocks = [];
+  let block = null;
+  for (let i = start; i < end; i++) {
+    const p = pairs[i];
+    if (p.code === 0) { if (block) blocks.push(block); block = [{ code: 0, value: p.value.toUpperCase() }]; }
+    else if (block) block.push(p);
+  }
+  if (block) blocks.push(block);
+  const entities = [], unsupported = [];
+  let lineId = 0;
+  const push = (type, points, closed = false, layer = '0') => {
+    if (!points || points.length < (type === 'point' ? 1 : 2)) return;
+    const clean = points.map(p => ({ x: Number(p.x) || 0, y: Number(p.y) || 0, z: Number(p.z) || 0 }));
+    if (closed && clean.length > 2) {
+      const a = clean[0], b = clean[clean.length - 1];
+      if (Math.abs(a.x - b.x) < 1e-9 && Math.abs(a.y - b.y) < 1e-9 && Math.abs(a.z - b.z) < 1e-9) clean.pop();
+    }
+    entities.push({ type, points: clean, closed, layer: String(layer || '0') });
+  };
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i], type = b[0].value;
+    const layer = b.find(p => p.code === 8)?.value || '0';
+    if (type === 'LINE') {
+      push('line', [{ x: dxfValue(b,10), y: dxfValue(b,20), z: dxfValue(b,30) }, { x: dxfValue(b,11), y: dxfValue(b,21), z: dxfValue(b,31) }], false, layer);
+    } else if (type === 'LWPOLYLINE') {
+      const elevation = dxfValue(b, 38, 0), pts = dxfVerticesFromPairs(b.slice(1), elevation);
+      push('polyline', pts, (dxfValue(b, 70, 0) & 1) === 1, layer);
+    } else if (type === 'POLYLINE') {
+      const pts = []; let j = i + 1;
+      while (j < blocks.length && blocks[j][0].value === 'VERTEX') {
+        const v = blocks[j]; pts.push({ x: dxfValue(v,10), y: dxfValue(v,20), z: dxfValue(v,30) }); j++;
+      }
+      if (j < blocks.length && blocks[j][0].value === 'SEQEND') i = j;
+      else i = j - 1;
+      push('polyline', pts, (dxfValue(b, 70, 0) & 1) === 1, layer);
+    } else if (type === 'CIRCLE') {
+      const cx = dxfValue(b,10), cy = dxfValue(b,20), cz = dxfValue(b,30), r = Math.abs(dxfValue(b,40));
+      if (r > 0) push('circle', Array.from({length: 64}, (_,k) => { const a = k * Math.PI * 2 / 64; return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), z: cz }; }), true, layer);
+    } else if (type === 'ARC') {
+      const cx = dxfValue(b,10), cy = dxfValue(b,20), cz = dxfValue(b,30), r = Math.abs(dxfValue(b,40));
+      let startA = dxfValue(b,50), endA = dxfValue(b,51); while (endA <= startA) endA += 360;
+      const span = endA - startA, steps = Math.max(8, Math.min(180, Math.ceil(span / 4)));
+      if (r > 0) push('arc', Array.from({length: steps + 1}, (_,k) => { const a = (startA + span * k / steps) * Math.PI / 180; return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), z: cz }; }), false, layer);
+    } else if (type === 'POINT') {
+      push('point', [{ x: dxfValue(b,10), y: dxfValue(b,20), z: dxfValue(b,30) }], false, layer);
+    } else if (type === 'ENDSEC' || type === 'SEQEND') {
+      // Structural markers are ignored.
+    } else {
+      unsupported.push(type);
+    }
+  }
+  return { entities, unsupported };
+}
+function addDxfEntity(spec, index) {
+  const points = spec.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
+  let mesh;
+  const color = '#d9e2f0';
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  if (spec.type === 'point') {
+    mesh = new THREE.Points(geometry, new THREE.PointsMaterial({ color, size: 0.12, sizeAttenuation: true }));
+  } else {
+    mesh = spec.closed ? new THREE.LineLoop(geometry, new THREE.LineBasicMaterial({ color })) : new THREE.Line(geometry, new THREE.LineBasicMaterial({ color }));
+  }
+  const safeLayer = String(spec.layer || '0').replace(/[^\w.-]+/g, '_').slice(0, 25) || '0';
+  const name = spec.name || `DXF_${safeLayer}_${spec.type.toUpperCase()}_${String(index).padStart(3, '0')}`;
+  const objColor = /^#[0-9a-fA-F]{6}$/.test(spec.color || '') ? spec.color : color;
+  if (mesh.material && mesh.material.color) mesh.material.color.set(objColor);
+  const obj = { id: objectIdCounter++, name, type: `dxf-${spec.type}`, mesh, layerId: Number.isFinite(Number(spec.layerId)) ? Number(spec.layerId) : currentLayerId, color: objColor, dxfLayer: spec.layer || '0', dxfClosed: !!spec.closed };
+  mesh.position.set(...(spec.pos || [0,0,0]));
+  if (spec.rot) mesh.rotation.set(...spec.rot);
+  if (spec.scale) mesh.scale.set(...spec.scale);
+  mesh.userData = { objData: obj };
+  scene.add(mesh);
+  objects.push(obj);
+  return obj;
+}
+function restoreSerializedObject(item, index = 1) {
+  if (String(item.type || '').startsWith('dxf-') && Array.isArray(item.dxfPoints) && item.dxfPoints.length) {
+    const obj = addDxfEntity({
+      type: String(item.type).slice(4),
+      points: item.dxfPoints.map(p => ({ x: Number(p[0]) || 0, y: Number(p[1]) || 0, z: Number(p[2]) || 0 })),
+      closed: !!item.dxfClosed,
+      layer: item.dxfLayer || '0',
+      name: item.name,
+      color: item.color,
+      layerId: item.layerId,
+      pos: item.pos,
+      rot: item.rot,
+      scale: item.scale
+    }, index);
+    return obj;
+  }
+  return createObject(item.type, { name: item.name, pos: item.pos, rot: item.rot, scale: item.scale, color: item.color, layerId: item.layerId });
+}
+function fitCameraToObjects(items) {
+  if (!items || !items.length || !camera || !controls) return;
+  const bounds = new THREE.Box3();
+  items.forEach(o => { o.mesh.updateMatrixWorld(true); bounds.expandByObject(o.mesh); });
+  if (bounds.isEmpty()) return;
+  const center = bounds.getCenter(new THREE.Vector3());
+  const size = bounds.getSize(new THREE.Vector3());
+  const extent = Math.max(size.x, size.y, size.z, 1);
+  const distance = Math.max(5, extent * 1.7 + 2);
+  camera.far = Math.max(1000, distance * 100);
+  camera.near = Math.max(0.01, distance / 100000);
+  camera.updateProjectionMatrix();
+  const direction = new THREE.Vector3(1, -1.3, 1).normalize();
+  camera.up.set(0, 0, 1);
+  camera.position.copy(center).addScaledVector(direction, distance);
+  camera.lookAt(center);
+  controls.target.copy(center);
+  controls.update();
+}
+
+function exportDXF(){
+  const lines=['0','SECTION','2','ENTITIES'];
+  const addLine=(a,b)=>lines.push('0','LINE','8','MESHSTUDIO','10',a.x.toFixed(6),'20',a.y.toFixed(6),'30',a.z.toFixed(6),'11',b.x.toFixed(6),'21',b.y.toFixed(6),'31',b.z.toFixed(6));
+  objects.filter(o=>!o.hiddenByGroup&&o.type!=='group').forEach(o=>{
+    const m=o.mesh;
+    if(o.shapePoints&&o.shapePoints.length>1){
+      const pts=o.shapePoints.map(p=>new THREE.Vector3(p[0],p[1],m.position.z).applyMatrix4(m.matrixWorld));
+      for(let i=0;i<pts.length-1;i++)addLine(pts[i],pts[i+1]);
+      if(o.closed)addLine(pts[pts.length-1],pts[0]);
+    }else{
+      m.updateMatrixWorld(true);
+      const geom=m.geometry;const pos=geom&&geom.attributes&&geom.attributes.position;
+      if(pos){
+        const pts=Array.from({length:pos.count},(_,i)=>new THREE.Vector3().fromBufferAttribute(pos,i).applyMatrix4(m.matrixWorld));
+        if(m.isLineLoop){for(let i=0;i<pts.length;i++)addLine(pts[i],pts[(i+1)%pts.length]);}
+        else if(m.isLine){for(let i=0;i<pts.length-1;i++)addLine(pts[i],pts[i+1]);}
+        else if(m.isPoints){pts.forEach(p=>addLine(p,p));}
+        else for(let i=0;i<pts.length;i+=2)addLine(pts[i],pts[Math.min(i+1,pts.length-1)]);
+      }
+    }
+  });
+  lines.push('0','ENDSEC','0','EOF');
+  exportBlob(`${sanitizeDrawingFilename(drawingName)}.dxf`,lines.join('\r\n'),'application/dxf');
+}
+function exportOBJ(){
+  const exporter=[];
+  let offset=1;
+  objects.filter(o=>!o.hiddenByGroup&&o.type!=='group').forEach(o=>{
+    const m=o.mesh;m.updateMatrixWorld(true);
+    const geom=m.geometry.clone();if(!geom.attributes.normal)geom.computeVertexNormals();
+    const pos=geom.attributes.position;
+    if(!pos)return;
+    exporter.push(`# ${o.name}`);
+    for(let i=0;i<pos.count;i++){const v=new THREE.Vector3().fromBufferAttribute(pos,i).applyMatrix4(m.matrixWorld);exporter.push(`v ${v.x} ${v.y} ${v.z}`);}
+    const idx=geom.index;
+    if(idx){for(let i=0;i<idx.count;i+=3)exporter.push(`f ${idx.getX(i)+offset} ${idx.getX(i+1)+offset} ${idx.getX(i+2)+offset}`);}
+    else if(o.type!=='line'&&o.type!=='line2d'&&o.type!=='polyline'){for(let i=0;i+2<pos.count;i+=3)exporter.push(`f ${i+offset} ${i+1+offset} ${i+2+offset}`);}
+    offset+=pos.count;
+  });
+  exportBlob('MeshStudio-3D.obj',exporter.join('\n'),'text/plain');
+}
+function makeArcFromPoints(points){
+  if(points.length<3){showModal('ARC','Cung cần 3 điểm: đầu, điểm giữa, cuối.');return;}
+  const curve=new THREE.QuadraticBezierCurve3(points[0],points[1],points[2]);
+  const pts=curve.getPoints(48),geom=new THREE.BufferGeometry().setFromPoints(pts);
+  const mesh=new THREE.Line(geom,new THREE.LineBasicMaterial({color:'#5c7cfa'}));
+  const obj={id:objectIdCounter++,name:`Arc_${String(objectIdCounter).padStart(2,'0')}`,type:'arc',mesh,layerId:currentLayerId,color:'#5c7cfa',closed:false,shapePoints:pts.map(p=>[p.x,p.y])};
+  mesh.userData={objData:obj};scene.add(mesh);objects.push(obj);selectObject(obj);updateObjectsList();setStatus('Đã tạo cung ARC qua 3 điểm.');
+}
+window.createVCADLayer = createLayer;
+function initAdvancedTools(){
+  const addLayerBtn=document.getElementById('btn-add-layer');
+  const createPanel=document.getElementById('layer-create-panel');
+  const nameInput=document.getElementById('layer-new-name');
+  const colorInput=document.getElementById('layer-new-color');
+  addLayerBtn?.addEventListener('click',()=>{
+    if(!createPanel)return;
+    createPanel.classList.toggle('hidden');
+    if(!createPanel.classList.contains('hidden')){
+      nameInput.value='Layer '+String(layers.length).padStart(2,'0');
+      colorInput.value='#38d9a9';
+      nameInput.focus();nameInput.select();
+    }
+  });
+  document.getElementById('layer-create-confirm')?.addEventListener('click',()=>{
+    const name=(nameInput?.value||'').trim();
+    if(!name){setStatus('Nhập tên layer trước khi tạo.');nameInput?.focus();return;}
+    const color=colorInput?.value||'#38d9a9';
+    const layer=createLayer(name,color);
+    if(layer){layer.color=color;currentLayerId=layer.id;updateLayersUI();}
+    createPanel?.classList.add('hidden');
+    setStatus(`Đã tạo layer "${name}" với màu đã chọn; layer đang hoạt động.`);
+  });
+  document.getElementById('layer-create-cancel')?.addEventListener('click',()=>createPanel?.classList.add('hidden'));
+  nameInput?.addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('layer-create-confirm')?.click();if(e.key==='Escape')createPanel?.classList.add('hidden');});
+  document.getElementById('btn-ortho')?.addEventListener('click',e=>{orthoEnabled=!orthoEnabled;e.currentTarget.textContent=`Ortho: ${orthoEnabled?'ON':'OFF'}`;e.currentTarget.classList.toggle('active',orthoEnabled);setStatus(`Ortho ${orthoEnabled?'ON':'OFF'}`);setStatus(`Ortho ${orthoEnabled?'bật':'tắt'}; giữ Shift cũng khóa phương.`);});
+  document.getElementById('btn-gumball')?.addEventListener('click',e=>{gumballEnabled=!gumballEnabled;gumballGroup.visible=gumballEnabled&&!!selectedObject;e.currentTarget.textContent=`Gumball: ${gumballEnabled?'ON':'OFF'}`;e.currentTarget.classList.toggle('active',gumballEnabled);});
+  document.getElementById('btn-group')?.addEventListener('click',groupSelected);
+  document.getElementById('btn-ungroup')?.addEventListener('click',ungroupSelected);
+  document.getElementById('btn-export-dxf')?.addEventListener('click',exportDXF);
+  document.getElementById('btn-export-obj')?.addEventListener('click',exportOBJ);
+  const list=document.getElementById('objects-list');
+  list?.addEventListener('click',e=>{
+    const row=e.target.closest('[data-object-id]');if(!row)return;
+    const obj=objects.find(o=>o.id===Number(row.dataset.objectId));if(!obj)return;
+    if(e.ctrlKey||e.metaKey){
+      const set=new Set(selectedObjects);
+      if(set.has(obj))set.delete(obj);else set.add(obj);
+      setSelectionMany([...set],obj);
+    }else if(e.shiftKey&&lastListSelection){
+      const a=objects.findIndex(o=>o.id===lastListSelection.id),b=objects.indexOf(obj);
+      setSelectionMany(objects.slice(Math.min(a,b),Math.max(a,b)+1),obj);
+    }else{lastListSelection=obj;setSelectionMany([obj],obj);}
+  });
+}
+function onWindowResize() {
+  const container = document.getElementById('viewport-container');
+  camera.aspect = container.clientWidth / container.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(container.clientWidth, container.clientHeight);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const updateButton = document.getElementById('btn-check-updates');
+  if (updateButton) updateButton.addEventListener('click', async () => {
+    updateButton.disabled = true;
+    const oldText = updateButton.innerHTML;
+    updateButton.textContent = 'Đang kiểm tra...';
+    try {
+      if (!window.vcadUpdater || typeof window.vcadUpdater.check !== 'function') {
+        alert('Tính năng cập nhật chỉ có trong bản VC@D Desktop đã cài.');
+        return;
+      }
+      const result = await window.vcadUpdater.check();
+      if (result && result.error) alert('Không kiểm tra được cập nhật: ' + result.error);
+    } catch (e) {
+      alert('Không kiểm tra được cập nhật: ' + (e && e.message ? e.message : e));
+    } finally {
+      updateButton.disabled = false;
+      updateButton.innerHTML = oldText;
+    }
+  });
+});
+window.onload = init;
+</script>
+
+</body>
+</html>
