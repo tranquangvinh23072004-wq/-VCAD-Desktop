@@ -1,0 +1,73 @@
+name: Build and publish VC@D Windows update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'VCAD-GitHub-AutoUpdate-1.2.0-configured/VCAD-EXE-Project/**'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: vcad-auto-release
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Check out the current source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check version and skip if already released
+        id: release
+        shell: pwsh
+        run: |
+          $projectDir = "VCAD-GitHub-AutoUpdate-1.2.0-configured/VCAD-EXE-Project"
+          $packagePath = Join-Path $projectDir "package.json"
+          if (-not (Test-Path $packagePath)) { throw "Không tìm thấy $packagePath" }
+          $package = Get-Content $packagePath -Raw | ConvertFrom-Json
+          if ($package.version -notmatch '^\d+\.\d+\.\d+$') { throw "version phải có dạng X.Y.Z, hiện tại: $($package.version)" }
+          $tag = "v$($package.version)"
+          git fetch --tags origin
+          if ($LASTEXITCODE -ne 0) { throw "Không lấy được danh sách tag từ GitHub." }
+          $existingTag = git tag --list $tag
+          "version=$($package.version)" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          if ($existingTag) {
+            "should_release=false" >> $env:GITHUB_OUTPUT
+            Write-Host "Tag $tag đã tồn tại; bỏ qua để không phát hành trùng version. Tăng package.json version khi có bản mới."
+          } else {
+            "should_release=true" >> $env:GITHUB_OUTPUT
+            Write-Host "Sẽ build và phát hành $tag."
+          }
+
+      - name: Download local frontend vendor files
+        if: steps.release.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          $projectDir = "VCAD-GitHub-AutoUpdate-1.2.0-configured/VCAD-EXE-Project"
+          & (Join-Path $projectDir "download-vendor.ps1")
+          if (-not $?) { throw "Tải thư viện giao diện thất bại." }
+
+      - name: Install Node dependencies
+        if: steps.release.outputs.should_release == 'true'
+        working-directory: VCAD-GitHub-AutoUpdate-1.2.0-configured/VCAD-EXE-Project
+        run: npm install --no-audit --no-fund
+
+      - name: Build Windows installer and publish update assets
+        if: steps.release.outputs.should_release == 'true'
+        working-directory: VCAD-GitHub-AutoUpdate-1.2.0-configured/VCAD-EXE-Project
+        run: npx electron-builder --win nsis --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
