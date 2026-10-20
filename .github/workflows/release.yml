@@ -1,11 +1,10 @@
+
 name: Build and publish VC@D Windows update
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'VCAD-GitHub-AutoUpdate-1.2.0-configured/VCAD-EXE-Project/**'
-      - '.github/workflows/release.yml'
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -18,6 +17,7 @@ concurrency:
 jobs:
   build-and-publish-windows:
     runs-on: windows-latest
+
     steps:
       - name: Check out the current source
         uses: actions/checkout@v4
@@ -33,20 +33,34 @@ jobs:
         id: release
         shell: pwsh
         run: |
-          $projectDir = "VCAD-GitHub-AutoUpdate-1.2.0-configured/VCAD-EXE-Project"
+          $projectDir = "."
           $packagePath = Join-Path $projectDir "package.json"
-          if (-not (Test-Path $packagePath)) { throw "Không tìm thấy $packagePath" }
+
+          if (-not (Test-Path $packagePath)) {
+            throw "Không tìm thấy package.json tại thư mục gốc repository."
+          }
+
           $package = Get-Content $packagePath -Raw | ConvertFrom-Json
-          if ($package.version -notmatch '^\d+\.\d+\.\d+$') { throw "version phải có dạng X.Y.Z, hiện tại: $($package.version)" }
+
+          if ($package.version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "version phải có dạng X.Y.Z, hiện tại: $($package.version)"
+          }
+
           $tag = "v$($package.version)"
+
           git fetch --tags origin
-          if ($LASTEXITCODE -ne 0) { throw "Không lấy được danh sách tag từ GitHub." }
+          if ($LASTEXITCODE -ne 0) {
+            throw "Không lấy được danh sách tag từ GitHub."
+          }
+
           $existingTag = git tag --list $tag
+
           "version=$($package.version)" >> $env:GITHUB_OUTPUT
           "tag=$tag" >> $env:GITHUB_OUTPUT
+
           if ($existingTag) {
             "should_release=false" >> $env:GITHUB_OUTPUT
-            Write-Host "Tag $tag đã tồn tại; bỏ qua để không phát hành trùng version. Tăng package.json version khi có bản mới."
+            Write-Host "Tag $tag đã tồn tại. Bỏ qua phát hành trùng version."
           } else {
             "should_release=true" >> $env:GITHUB_OUTPUT
             Write-Host "Sẽ build và phát hành $tag."
@@ -56,18 +70,24 @@ jobs:
         if: steps.release.outputs.should_release == 'true'
         shell: pwsh
         run: |
-          $projectDir = "VCAD-GitHub-AutoUpdate-1.2.0-configured/VCAD-EXE-Project"
-          & (Join-Path $projectDir "download-vendor.ps1")
-          if (-not $?) { throw "Tải thư viện giao diện thất bại." }
+          $vendorScript = Join-Path "." "download-vendor.ps1"
+
+          if (-not (Test-Path $vendorScript)) {
+            throw "Không tìm thấy download-vendor.ps1 tại thư mục gốc repository."
+          }
+
+          & $vendorScript
+
+          if (-not $?) {
+            throw "Tải thư viện giao diện thất bại."
+          }
 
       - name: Install Node dependencies
         if: steps.release.outputs.should_release == 'true'
-        working-directory: VCAD-GitHub-AutoUpdate-1.2.0-configured/VCAD-EXE-Project
         run: npm install --no-audit --no-fund
 
       - name: Build Windows installer and publish update assets
         if: steps.release.outputs.should_release == 'true'
-        working-directory: VCAD-GitHub-AutoUpdate-1.2.0-configured/VCAD-EXE-Project
         run: npx electron-builder --win nsis --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
