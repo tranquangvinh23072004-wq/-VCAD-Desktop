@@ -1,0 +1,59 @@
+{
+  "name": "vcad-desktop",
+  "version": "1.2.0",
+  "description": "VC@D Desktop CAD with in-app update support",
+  "main": "main.js",
+  "author": "VCAD",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis",
+    "publish:win": "electron-builder --win nsis --publish always"
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^26.0.12",
+    "electron-updater": "^6.6.2"
+  },
+  "build": {
+    "appId": "vn.vcad.desktop",
+    "productName": "VC@D",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "app/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "VCAD-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "tranquangvinh23072004-wq",
+        "repo": "-VCAD-Desktop"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tranquangvinh23072004-wq/-VCAD-Desktop.git"
+  }
+}
