@@ -1,6 +1,6 @@
 {
   "name": "vcad-desktop",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "VC@D Desktop CAD with in-app update support",
   "main": "main.js",
   "author": "VCAD",
