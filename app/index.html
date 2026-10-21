@@ -50,6 +50,22 @@
   /* Modal Overlay */
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(2px); }
 
+  /* Dockable panel chrome (v1.2.3 UI customization) */
+  .vcad-panel-titlebar{height:28px;min-height:28px;display:flex;align-items:center;gap:6px;padding:0 7px;background:#1b1d25;border-bottom:1px solid #3a4050;cursor:grab;user-select:none;flex-shrink:0}
+  .vcad-panel-titlebar:active{cursor:grabbing}
+  .vcad-panel-title{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#c4c9d4;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .vcad-panel-action{border:1px solid #414858;background:#272b36;color:#bfc6d4;border-radius:3px;width:21px;height:20px;line-height:16px;font-size:12px;cursor:pointer}
+  .vcad-panel-action:hover{background:#3b4252;color:white}
+  .vcad-panel-hidden{display:none!important}
+  #tools-panel.vcad-floating,#properties-panel.vcad-floating{position:fixed!important;z-index:180!important;left:22vw;top:15vh;width:310px;height:65vh;max-width:70vw;max-height:80vh;resize:both;box-shadow:0 12px 35px #0009;border:1px solid #586174;overflow:auto}
+  #tools-panel.vcad-floating{left:22vw} #properties-panel.vcad-floating{left:auto;right:8vw}
+  #tools-panel.vcad-drop-target,#properties-panel.vcad-drop-target{outline:2px dashed #748ffc;outline-offset:-4px}
+  .panel-menu-item{display:block;width:100%;text-align:left;padding:7px 9px;border-radius:4px;font-size:11px;color:#d4d7de}
+  .panel-menu-item:hover{background:#343a49}
+  #app-body.vcad-hide-tools{grid-template-columns:0 minmax(300px,1fr) minmax(210px,var(--props-width))}
+  #app-body.vcad-hide-props{grid-template-columns:minmax(190px,var(--tools-width)) minmax(300px,1fr) 0}
+  #app-body.vcad-hide-tools.vcad-hide-props{grid-template-columns:0 minmax(300px,1fr) 0}
+  #app-body.vcad-hide-tools #tools-panel,#app-body.vcad-hide-props #properties-panel{border:0!important;min-width:0!important;padding:0!important;overflow:hidden!important}
   [hidden] { display: none !important; }
   .hidden { display: none !important; }
 </style>
@@ -74,6 +90,7 @@
       <button id="btn-import-append" class="rhino-btn px-2 py-1 rounded" title="Nhập thêm đối tượng từ JSON vào bản vẽ hiện tại"><i class="fa-solid fa-file-import"></i> Nhập thêm</button>
       <button id="btn-save" class="rhino-btn px-2 py-1 rounded" title="Lưu bản vẽ dạng DXF"><i class="fa-solid fa-floppy-disk"></i> Lưu</button>
       <button id="btn-ui-options" class="rhino-btn px-2 py-1 rounded" title="Tùy chỉnh giao diện và tên bản vẽ"><i class="fa-solid fa-palette"></i> Giao diện</button>
+      <div class="relative" id="panel-menu-wrap"><button id="btn-panel-menu" class="rhino-btn px-2 py-1 rounded" title="Hiện/ẩn và bố trí các bảng"><i class="fa-solid fa-table-columns"></i> Bảng</button><div id="panel-menu" class="hidden absolute top-full left-0 mt-1 p-2 rounded border border-[#414858] bg-[#20232b] shadow-xl min-w-[180px] z-[200]"><div class="text-[10px] uppercase text-gray-400 px-2 py-1">Hiện / ẩn bảng</div><button data-panel-show="tools-panel" class="panel-menu-item">Design / Công cụ</button><button data-panel-show="properties-panel" class="panel-menu-item">Properties / Đối tượng</button><div class="border-t border-[#414858] my-1"></div><button id="btn-reset-layout" class="panel-menu-item"><i class="fa-solid fa-rotate-left mr-2"></i>Khôi phục bố cục</button></div></div>
       <button id="btn-check-updates" class="rhino-btn px-2 py-1 rounded" title="Kiểm tra cập nhật VC@D"><i class="fa-solid fa-cloud-arrow-down"></i> Cập nhật</button>
       <input id="file-input" type="file" accept=".json" class="hidden">
       <input id="file-append-input" type="file" accept=".json" class="hidden">
@@ -1608,6 +1625,17 @@ function initDockLayout(){
   const tools=document.getElementById('tools-panel');
   const props=document.getElementById('properties-panel');
   const selects=[...document.querySelectorAll('[data-dock-target]')];
+  const panels={'tools-panel':tools,'properties-panel':props};
+  const panelNames={'tools-panel':'Design / Công cụ','properties-panel':'Properties / Đối tượng'};
+  const setDock=(panelId,where)=>{
+    const panel=panels[panelId]; if(!panel)return;
+    const sel=document.querySelector('[data-dock-target="'+panelId+'"]');
+    if(sel && [...sel.options].some(o=>o.value===where))sel.value=where;
+    panel.classList.remove('vcad-floating');
+    panel.style.removeProperty('left');panel.style.removeProperty('top');panel.style.removeProperty('right');panel.style.removeProperty('width');panel.style.removeProperty('height');
+    panel.classList.remove('vcad-panel-hidden');
+    apply();
+  };
   const apply=()=>{
     const a=document.querySelector('[data-dock-target="tools-panel"]')?.value||'left';
     const b=document.querySelector('[data-dock-target="properties-panel"]')?.value||'right';
@@ -1621,12 +1649,25 @@ function initDockLayout(){
   };
   try{const saved=JSON.parse(localStorage.getItem('vcad-dock-layout')||'null');if(saved){const t=document.querySelector('[data-dock-target="tools-panel"]'),p=document.querySelector('[data-dock-target="properties-panel"]');if(t&&['left','bottom'].includes(saved.tools))t.value=saved.tools;if(p&&['right','bottom'].includes(saved.properties))p.value=saved.properties;}}catch(_){}
   selects.forEach(el=>el.addEventListener('change',apply));apply();
-  // Real grid-track resizing (CSS resize alone does not resize a CSS Grid track).
-  const bodyEl=document.getElementById('app-body');
-  const toolsPanel=document.getElementById('tools-panel'),propsPanel=document.getElementById('properties-panel');
-  const addGrip=(panel,side)=>{const grip=document.createElement('div');grip.className='vcad-resize-grip';grip.style.cssText=`position:absolute;${side==='right'?'right:0;top:0;width:5px;height:100%;cursor:col-resize;':'left:0;top:0;width:5px;height:100%;cursor:col-resize;'}z-index:30;background:transparent`;panel.style.position='relative';panel.appendChild(grip);grip.addEventListener('pointerdown',e=>{if(panel.classList.contains('docked-bottom'))return;e.preventDefault();grip.setPointerCapture(e.pointerId);const startX=e.clientX,computed=getComputedStyle(bodyEl),start=side==='right'?parseFloat(computed.getPropertyValue('--tools-width'))||230:parseFloat(computed.getPropertyValue('--props-width'))||260;const move=ev=>{const delta=ev.clientX-startX;const val=Math.max(side==='right'?190:210,Math.min(window.innerWidth*.42,start+(side==='right'?delta:-delta)));bodyEl.style.setProperty(side==='right'?'--tools-width':'--props-width',val+'px');onWindowResize();};const end=()=>{grip.removeEventListener('pointermove',move);grip.removeEventListener('pointerup',end);try{localStorage.setItem('vcad-panel-widths',JSON.stringify({tools:bodyEl.style.getPropertyValue('--tools-width'),props:bodyEl.style.getPropertyValue('--props-width')}));}catch(_){}};grip.addEventListener('pointermove',move);grip.addEventListener('pointerup',end);});};
-  addGrip(toolsPanel,'right');addGrip(propsPanel,'left');
+  const bodyEl=body;
+  const addGrip=(panel,side)=>{const grip=document.createElement('div');grip.className='vcad-resize-grip';grip.style.cssText=`position:absolute;${side==='right'?'right:0;top:0;width:5px;height:100%;cursor:col-resize;':'left:0;top:0;width:5px;height:100%;cursor:col-resize;'}z-index:30;background:transparent`;panel.style.position='relative';panel.appendChild(grip);grip.addEventListener('pointerdown',e=>{if(panel.classList.contains('docked-bottom')||panel.classList.contains('vcad-floating'))return;e.preventDefault();grip.setPointerCapture(e.pointerId);const startX=e.clientX,computed=getComputedStyle(bodyEl),start=side==='right'?parseFloat(computed.getPropertyValue('--tools-width'))||230:parseFloat(computed.getPropertyValue('--props-width'))||260;const move=ev=>{const delta=ev.clientX-startX;const val=Math.max(side==='right'?190:210,Math.min(window.innerWidth*.42,start+(side==='right'?delta:-delta)));bodyEl.style.setProperty(side==='right'?'--tools-width':'--props-width',val+'px');onWindowResize();};const end=()=>{grip.removeEventListener('pointermove',move);grip.removeEventListener('pointerup',end);try{localStorage.setItem('vcad-panel-widths',JSON.stringify({tools:bodyEl.style.getPropertyValue('--tools-width'),props:bodyEl.style.getPropertyValue('--props-width')}));}catch(_){}};grip.addEventListener('pointermove',move);grip.addEventListener('pointerup',end);});};
+  addGrip(tools,'right');addGrip(props,'left');
   try{const w=JSON.parse(localStorage.getItem('vcad-panel-widths')||'null');if(w?.tools)bodyEl.style.setProperty('--tools-width',w.tools);if(w?.props)bodyEl.style.setProperty('--props-width',w.props);}catch(_){}
+  // Add a draggable title bar to each dockable panel. Drag to left/right/bottom edge to dock.
+  Object.entries(panels).forEach(([id,panel])=>{
+    const bar=document.createElement('div');bar.className='vcad-panel-titlebar';bar.innerHTML=`<span class="vcad-panel-title">${panelNames[id]}</span><button class="vcad-panel-action" data-action="float" title="Cửa sổ nổi">↗</button><button class="vcad-panel-action" data-action="hide" title="Ẩn bảng">×</button>`;
+    panel.insertBefore(bar,panel.firstChild);
+    bar.querySelector('[data-action="hide"]').addEventListener('click',()=>{panel.classList.add('vcad-panel-hidden');body.classList.toggle(id==='tools-panel'?'vcad-hide-tools':'vcad-hide-props',true);updatePanelMenu();setTimeout(()=>{if(camera&&renderer)onWindowResize();},50);});
+    bar.querySelector('[data-action="float"]').addEventListener('click',()=>{panel.classList.toggle('vcad-floating');if(panel.classList.contains('vcad-floating')){panel.classList.remove('vcad-panel-hidden');body.classList.remove(id==='tools-panel'?'vcad-hide-tools':'vcad-hide-props');panel.style.position='fixed';panel.style.zIndex='180';}else{panel.style.removeProperty('position');panel.style.removeProperty('z-index');}setTimeout(()=>{if(camera&&renderer)onWindowResize();},80);});
+    bar.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;bar.setPointerCapture(e.pointerId);const sx=e.clientX,sy=e.clientY,rect=panel.getBoundingClientRect();let moved=false;const move=ev=>{if(!panel.classList.contains('vcad-floating')&&Math.hypot(ev.clientX-sx,ev.clientY-sy)>8){panel.classList.add('vcad-floating');panel.style.position='fixed';panel.style.zIndex='180';panel.style.width=Math.max(250,rect.width)+'px';panel.style.height=Math.max(180,rect.height)+'px';panel.style.left=Math.max(0,rect.left)+'px';panel.style.top=Math.max(0,rect.top)+'px';panel.style.right='auto';moved=true;}if(panel.classList.contains('vcad-floating')){panel.style.left=Math.max(0,Math.min(window.innerWidth-100,ev.clientX-Math.min(sx-rect.left,rect.width-50)))+'px';panel.style.top=Math.max(0,Math.min(window.innerHeight-50,ev.clientY-(sy-rect.top)))+'px';document.querySelectorAll('#tools-panel,#properties-panel').forEach(x=>x.classList.remove('vcad-drop-target'));const edge=ev.clientX<80?'left':ev.clientX>window.innerWidth-80?'right':ev.clientY>window.innerHeight-100?'bottom':null;if(edge&&edge!=='bottom'&&id==='tools-panel'&&edge==='left'||edge==='right'&&id==='properties-panel'||edge==='bottom'){panel.classList.add('vcad-drop-target');panel.dataset.dropEdge=edge;}else delete panel.dataset.dropEdge;}};const end=()=>{bar.removeEventListener('pointermove',move);bar.removeEventListener('pointerup',end);panel.classList.remove('vcad-drop-target');if(panel.dataset.dropEdge){const edge=panel.dataset.dropEdge;delete panel.dataset.dropEdge;setDock(id,edge==='bottom'?'bottom':edge); } else if(panel.classList.contains('vcad-floating')){try{localStorage.setItem('vcad-floating-'+id,JSON.stringify({left:panel.style.left,top:panel.style.top,width:panel.style.width,height:panel.style.height}));}catch(_){}}};bar.addEventListener('pointermove',move);bar.addEventListener('pointerup',end);});
+  });
+  const menu=document.getElementById('panel-menu'),menuBtn=document.getElementById('btn-panel-menu');
+  const updatePanelMenu=()=>{document.querySelectorAll('[data-panel-show]').forEach(btn=>{const id=btn.dataset.panelShow;btn.innerHTML=(panels[id].classList.contains('vcad-panel-hidden')?'□ Hiện ':'✓ Ẩn ')+panelNames[id];});};
+  window.updatePanelMenu=updatePanelMenu;
+  menuBtn?.addEventListener('click',e=>{e.stopPropagation();menu.classList.toggle('hidden');updatePanelMenu();});
+  document.querySelectorAll('[data-panel-show]').forEach(btn=>btn.addEventListener('click',()=>{const id=btn.dataset.panelShow;panels[id].classList.remove('vcad-panel-hidden','vcad-floating');panels[id].style.removeProperty('position');panels[id].style.removeProperty('z-index');body.classList.remove(id==='tools-panel'?'vcad-hide-tools':'vcad-hide-props');menu.classList.add('hidden');updatePanelMenu();apply();if(camera&&renderer)onWindowResize();}));
+  document.addEventListener('click',e=>{if(!e.target.closest('#panel-menu-wrap'))menu?.classList.add('hidden');});
+  document.getElementById('btn-reset-layout')?.addEventListener('click',()=>{['tools-panel','properties-panel'].forEach(id=>{const panel=panels[id];panel.classList.remove('vcad-panel-hidden','vcad-floating','vcad-drop-target');panel.style.removeProperty('position');panel.style.removeProperty('z-index');panel.style.removeProperty('left');panel.style.removeProperty('top');panel.style.removeProperty('right');panel.style.removeProperty('width');panel.style.removeProperty('height');});body.classList.remove('vcad-hide-tools','vcad-hide-props');const t=document.querySelector('[data-dock-target="tools-panel"]'),p=document.querySelector('[data-dock-target="properties-panel"]');if(t)t.value='left';if(p)p.value='right';body.style.setProperty('--tools-width','230px');body.style.setProperty('--props-width','260px');try{localStorage.removeItem('vcad-dock-layout');localStorage.removeItem('vcad-panel-widths');localStorage.removeItem('vcad-floating-tools-panel');localStorage.removeItem('vcad-floating-properties-panel');}catch(_){}apply();menu?.classList.add('hidden');updatePanelMenu();if(camera&&renderer)onWindowResize();});
   ['snap-endpoint','snap-midpoint','snap-center','snap-face'].forEach(id=>document.getElementById(id)?.addEventListener('change',()=>{const any=['snap-endpoint','snap-midpoint','snap-center','snap-face'].some(k=>document.getElementById(k).checked);document.getElementById('snap-status').textContent=any?'ON':'OFF';if(!any)document.getElementById('snap-marker').style.display='none';}));
 }
 
