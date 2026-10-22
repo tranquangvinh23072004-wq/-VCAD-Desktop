@@ -1,7 +1,7 @@
 {
   "name": "vcad-desktop",
-  "version": "1.2.4",
-  "description": "VC@D Desktop CAD with in-app update support",
+  "version": "1.2.5",
+  "description": "VC@D Desktop CAD v1.2.5 — Trim/Extend + Extrude/Offset/Dock",
   "main": "main.js",
   "author": "VCAD",
   "license": "UNLICENSED",
