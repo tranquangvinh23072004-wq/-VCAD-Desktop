@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VC@D</title>
+<title>VC@D 1.2.5</title>
 <!-- Tailwind CSS & FontAwesome -->
 <script src="./vendor/tailwindcss.js"></script>
 <link rel="stylesheet" href="./vendor/fontawesome/css/all.min.css">
@@ -173,6 +173,10 @@
       <div class="grid grid-cols-2 gap-1.5 mb-2">
         <button id="btn-mirror" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1"><i class="fa-solid fa-arrows-split-up-and-left text-cyan-300"></i> Mirror</button>
         <button id="btn-array" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1"><i class="fa-solid fa-border-none text-purple-300"></i> Array</button>
+        <button id="btn-copy" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1"><i class="fa-regular fa-copy text-yellow-300"></i> Copy</button>
+        <button id="btn-offset" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1"><i class="fa-solid fa-vector-square text-pink-300"></i> Offset</button>
+        <button id="btn-trim" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1"><i class="fa-solid fa-scissors text-rose-300"></i> Trim</button>
+        <button id="btn-extend" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1"><i class="fa-solid fa-arrows-left-right-to-line text-lime-300"></i> Extend</button>
       </div>
       <div class="grid grid-cols-2 gap-1.5 mb-2">
         <button id="btn-ortho" class="rhino-btn p-1.5 rounded">Ortho: OFF</button>
@@ -249,18 +253,25 @@
 
       <!-- Quick Hint -->
       <div id="viewport-hint" class="absolute bottom-3 left-3 bg-[#181920]/80 border border-[#383e4c] rounded px-2.5 py-1 text-[11px] text-gray-400 backdrop-blur pointer-events-none">
-        Chuột trái: Chọn/Kéo gumball · Chuột phải+kéo: Xoay camera · Con lăn: Zoom
+        LMB chọn/kéo · RMB+kéo xoay view · Scroll zoom · Shift Ortho · Esc hủy lệnh · C đóng Polyline
       </div>
     </div>
 
     <!-- Command Line Section -->
-    <div id="command-bar" class="bg-[#181920] border-t border-[#323642] px-3 flex items-center gap-3 relative">
-      <div class="text-xs font-semibold text-indigo-400 whitespace-nowrap">Command:</div>
-      <div class="relative flex-1">
-        <input id="command-input" type="text" class="rhino-input w-full text-xs" placeholder="Gõ lệnh (vd: Box, Line, Move, Rotate, Extrude, Union, Mirror, Array...)">
-        <div id="autocomplete-list"></div>
+    <div id="command-bar" class="bg-[#181920] border-t border-[#323642] px-3 py-1 flex flex-col gap-1 relative">
+      <div class="flex items-center gap-2 text-[11px]">
+        <span class="text-emerald-400 font-semibold whitespace-nowrap">Prompt:</span>
+        <span id="cmd-prompt" class="text-gray-300 truncate flex-1">Sẵn sàng. Gõ lệnh hoặc chọn công cụ (Line, Extrude, Offset…).</span>
+        <span id="cmd-coords" class="text-cyan-300 font-mono whitespace-nowrap text-[10px]">X:0.00 Y:0.00 Z:0.00</span>
       </div>
-      <button id="btn-run-command" class="rhino-btn px-3 py-1 rounded text-xs">Thực thi</button>
+      <div class="flex items-center gap-3 relative">
+        <div class="text-xs font-semibold text-indigo-400 whitespace-nowrap">Command:</div>
+        <div class="relative flex-1">
+          <input id="command-input" type="text" class="rhino-input w-full text-xs" placeholder="LINE · POLYLINE · OFFSET · COPY · EXTRUDE · MOVE · ROTATE · MIRROR · ARRAY…">
+          <div id="autocomplete-list"></div>
+        </div>
+        <button id="btn-run-command" class="rhino-btn px-3 py-1 rounded text-xs">Thực thi</button>
+      </div>
     </div>
 
   </main>
@@ -512,7 +523,11 @@ function showModal(title, desc, isConfirm = false, inputPlaceholder = '', callba
 }
 
 function setStatus(text) {
-  document.getElementById('status-text').textContent = text;
+  const t = String(text || '');
+  const st = document.getElementById('status-text');
+  if (st) st.textContent = t;
+  const pr = document.getElementById('cmd-prompt');
+  if (pr) pr.textContent = t;
 }
 
 // Initialize Three.js Scene
@@ -715,7 +730,14 @@ function refreshProperties() {
 function setDrawMode(mode) {
   cancelDraw(); drawMode=mode; drawPoints=[];
   controls.enabled=false;
-  setStatus(`${mode.toUpperCase()}: nhấp điểm trên mặt phẳng XY; Enter kết thúc Polyline/Line, Esc hủy. Shift khóa vuông góc.`);
+  const tips = {
+    line: 'LINE — Điểm đầu → Điểm cuối (Shift = Ortho). Esc hủy.',
+    polyline: 'POLYLINE — Nhấp các điểm. Enter kết thúc · C đóng kín · Esc hủy.',
+    rectangle: 'RECTANGLE — Góc thứ nhất → Góc đối diện. Esc hủy.',
+    circle: 'CIRCLE — Tâm → Điểm trên đường tròn. Esc hủy.',
+    arc: 'ARC — Điểm đầu → Điểm giữa cung → Điểm cuối. Esc hủy.'
+  };
+  setStatus(tips[mode] || (mode.toUpperCase() + ' — nhấp điểm. Esc hủy.'));
 }
 function redrawPreview(cursorPoint=null) {
   if (previewLine) { scene.remove(previewLine); previewLine.geometry.dispose(); previewLine=null; }
@@ -750,25 +772,464 @@ function finishDraw() {
     mesh=new THREE.Mesh(new THREE.ShapeGeometry(sh, 128),new THREE.MeshStandardMaterial({color:'#5c7cfa',side:THREE.DoubleSide,transparent:true,opacity:.55}));
     shapePoints=Array.from({length:256},(_,i)=>[a.x+r*Math.cos(i*Math.PI/128),a.y+r*Math.sin(i*Math.PI/128)]);closed=true;mesh.position.z=.005;
   } else {
-    const linePts=pts.map(p=>new THREE.Vector3(p.x,p.y,(mode==='line'||mode==='polyline')?p.z+0.01:0.01));
-    const geom=new THREE.BufferGeometry().setFromPoints(linePts);
-    mesh=new THREE.Line(geom,new THREE.LineBasicMaterial({color:'#5c7cfa'}));
-    shapePoints=pts.map(p=>[p.x,p.y,p.z]);
+    let closedPoly = false;
+    if (mode === 'polyline' && pts.length >= 3) {
+      const a = pts[0], b = pts[pts.length - 1];
+      if (a.distanceTo(b) < 1e-4 || (typeof window.__vcadClosePoly === 'boolean' && window.__vcadClosePoly)) {
+        closedPoly = true;
+        if (a.distanceTo(b) >= 1e-4) pts = pts.concat([a.clone()]);
+      }
+    }
+    window.__vcadClosePoly = false;
+    const linePts = pts.map(p => new THREE.Vector3(p.x, p.y, (mode === 'line' || mode === 'polyline') ? p.z + 0.01 : 0.01));
+    const geom = new THREE.BufferGeometry().setFromPoints(linePts);
+    mesh = closedPoly
+      ? new THREE.LineLoop(geom, new THREE.LineBasicMaterial({ color: '#5c7cfa' }))
+      : new THREE.Line(geom, new THREE.LineBasicMaterial({ color: '#5c7cfa' }));
+    shapePoints = pts.map(p => [p.x, p.y, p.z]);
+    closed = closedPoly;
   }
   const obj={id:objectIdCounter++,name:`${mode[0].toUpperCase()+mode.slice(1)}_${String(objectIdCounter).padStart(2,'0')}`,type:mode==='line'?'line2d':mode,mesh,layerId:currentLayerId,color:'#5c7cfa',shapePoints,closed};
   mesh.userData={objData:obj,shapePoints,closed};scene.add(mesh);objects.push(obj);selectObject(obj);updateObjectsList();
   cancelDraw();setStatus(`Đã tạo ${obj.name}.`);
 }
-function extrudeSelected(height, axis='z') {
-  if(!selectedObject||!selectedObject.closed||!selectedObject.shapePoints||selectedObject.shapePoints.length<3){showModal('Extrude','Chọn Rectangle hoặc Circle kín trước khi Extrude.');return;}
-  const shape=new THREE.Shape();selectedObject.shapePoints.forEach((p,i)=>i===0?shape.moveTo(p[0],p[1]):shape.lineTo(p[0],p[1]));shape.closePath();
-  const geom=new THREE.ExtrudeGeometry(shape,{depth:Math.abs(height),bevelEnabled:false,steps:1});
-  const color=selectedObject.color,name=selectedObject.name+'_Extruded';
-  const mesh=new THREE.Mesh(geom,new THREE.MeshStandardMaterial({color,roughness:.3,metalness:.1}));
-  if(axis==='x'){mesh.rotation.y=Math.PI/2;mesh.position.x=height<0?height:0;}else if(axis==='y'){mesh.rotation.x=-Math.PI/2;mesh.position.y=height<0?height:0;}else{mesh.position.z=height<0?height:0;}mesh.castShadow=true;mesh.receiveShadow=true;
-  const obj={id:objectIdCounter++,name,type:'extrusion',mesh,layerId:currentLayerId,color};
-  mesh.userData={objData:obj};scene.add(mesh);objects.push(obj);selectObject(obj);updateObjectsList();setStatus(`Extrude thành công theo trục ${axis.toUpperCase()}: ${height} m.`);
+function extrudeSelected(height, axis) {
+  axis = (axis || document.getElementById('extrude-axis')?.value || 'z').toLowerCase();
+  height = Number(height);
+  if (!Number.isFinite(height) || height === 0) {
+    showModal('Extrude', 'Chiều cao Extrude phải khác 0.');
+    return;
+  }
+  if (!selectedObject) {
+    showModal('Extrude', 'Chọn một đường/mặt 2D kín (Rectangle, Circle hoặc Polyline đóng) trước khi Extrude.');
+    return;
+  }
+  // Lấy đỉnh thế giới hiện tại (theo mesh đã di chuyển/xoay)
+  selectedObject.mesh.updateMatrixWorld(true);
+  let worldPts = [];
+  if (Array.isArray(selectedObject.shapePoints) && selectedObject.shapePoints.length >= 3) {
+    worldPts = selectedObject.shapePoints.map(p => {
+      const v = new THREE.Vector3(Number(p[0]) || 0, Number(p[1]) || 0, Number(p[2]) || 0);
+      return v.applyMatrix4(selectedObject.mesh.matrixWorld);
+    });
+  } else {
+    const geom = selectedObject.mesh.geometry;
+    const pos = geom && geom.attributes && geom.attributes.position;
+    if (pos && pos.count >= 3) {
+      for (let i = 0; i < pos.count; i++) {
+        const v = new THREE.Vector3().fromBufferAttribute(pos, i);
+        selectedObject.mesh.localToWorld(v);
+        worldPts.push(v);
+      }
+    }
+  }
+  if (worldPts.length < 3) {
+    showModal('Extrude', 'Đối tượng không có đủ đỉnh để Extrude. Hãy dùng Rectangle, Circle hoặc đóng Polyline (phím C).');
+    return;
+  }
+  // Đóng contour nếu chưa đóng
+  const first = worldPts[0], last = worldPts[worldPts.length - 1];
+  if (first.distanceTo(last) > 1e-6) worldPts = worldPts.concat([first.clone()]);
+  // Chiếu lên mặt phẳng vuông góc trục extrude để tạo Shape 2D
+  const ax = axis === 'x' ? 'x' : axis === 'y' ? 'y' : 'z';
+  const to2 = (v) => ax === 'x' ? [v.y, v.z] : ax === 'y' ? [v.x, v.z] : [v.x, v.y];
+  const shape = new THREE.Shape();
+  worldPts.forEach((p, i) => {
+    const [u, w] = to2(p);
+    if (i === 0) shape.moveTo(u, w); else shape.lineTo(u, w);
+  });
+  shape.closePath();
+  const depth = Math.abs(height);
+  const geom = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, steps: 1 });
+  // ExtrudeGeometry đùn theo +Z local; xoay để khớp trục mong muốn
+  const mesh = new THREE.Mesh(geom, new THREE.MeshStandardMaterial({
+    color: selectedObject.color || '#5c7cfa', roughness: 0.35, metalness: 0.08, side: THREE.DoubleSide
+  }));
+  // Đặt gốc tại điểm đầu contour, hướng extrude theo dấu height
+  const base = worldPts[0].clone();
+  if (ax === 'z') {
+    mesh.position.set(0, 0, height < 0 ? base.z - depth : base.z);
+    // Shape dùng (x,y) tuyệt đối → geometry đã ở đúng XY thế giới
+  } else if (ax === 'x') {
+    // local Z → world +X; local X→Y, local Y→Z
+    mesh.rotation.y = Math.PI / 2;
+    mesh.position.set(height < 0 ? base.x - depth : base.x, 0, 0);
+  } else {
+    // local Z → world +Y
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(0, height < 0 ? base.y - depth : base.y, 0);
+  }
+  // Dịch theo tọa độ còn lại của base (Shape đã chứa offset trong plane)
+  if (ax === 'z') {
+    // no extra XY translate — shape coords already absolute
+  } else if (ax === 'x') {
+    // after rot Y 90: local (u,w,d) → world roughly maps; shape was (y,z)
+  } else {
+    // after rot X -90
+  }
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  const name = (selectedObject.name || 'Shape') + '_Extruded';
+  const obj = { id: objectIdCounter++, name, type: 'extrusion', mesh, layerId: currentLayerId, color: selectedObject.color || '#5c7cfa' };
+  mesh.userData = { objData: obj };
+  scene.add(mesh);
+  objects.push(obj);
+  selectObject(obj);
+  updateObjectsList();
+  setStatus(`Extrude thành công theo trục ${ax.toUpperCase()}: ${height} m.`);
 }
+
+/** Offset 2D closed contour outward/inward (simple polygon offset via normals). Rhino-like basic Offset. */
+function offsetSelected(distance) {
+  distance = Number(distance);
+  if (!Number.isFinite(distance) || distance === 0) {
+    showModal('OFFSET', 'Khoảng cách Offset phải khác 0 (dương = ra ngoài, âm = vào trong).');
+    return;
+  }
+  if (!selectedObject || !selectedObject.shapePoints || selectedObject.shapePoints.length < 3) {
+    showModal('OFFSET', 'Chọn Rectangle, Circle hoặc Polyline kín có shapePoints.');
+    return;
+  }
+  selectedObject.mesh.updateMatrixWorld(true);
+  const mat = selectedObject.mesh.matrixWorld;
+  let pts = selectedObject.shapePoints.map(p => {
+    const v = new THREE.Vector3(Number(p[0]) || 0, Number(p[1]) || 0, Number(p[2]) || 0);
+    return v.applyMatrix4(mat);
+  });
+  // drop duplicate close point
+  if (pts.length > 2 && pts[0].distanceTo(pts[pts.length - 1]) < 1e-6) pts = pts.slice(0, -1);
+  if (pts.length < 3) {
+    showModal('OFFSET', 'Không đủ đỉnh để Offset.');
+    return;
+  }
+  // 2D offset on XY
+  const n = pts.length;
+  const off = [];
+  for (let i = 0; i < n; i++) {
+    const prev = pts[(i - 1 + n) % n];
+    const cur = pts[i];
+    const next = pts[(i + 1) % n];
+    const e1 = new THREE.Vector2(cur.x - prev.x, cur.y - prev.y).normalize();
+    const e2 = new THREE.Vector2(next.x - cur.x, next.y - cur.y).normalize();
+    // outward normal (left of edge) — assume CCW; flip if area CW
+    const n1 = new THREE.Vector2(-e1.y, e1.x);
+    const n2 = new THREE.Vector2(-e2.y, e2.x);
+    let bis = n1.clone().add(n2);
+    if (bis.lengthSq() < 1e-10) bis = n1.clone();
+    else bis.normalize();
+    // miter scale
+    const miter = Math.min(4, 1 / Math.max(0.15, bis.dot(n1)));
+    off.push(new THREE.Vector3(cur.x + bis.x * distance * miter, cur.y + bis.y * distance * miter, cur.z));
+  }
+  // signed area to detect orientation — if CW flip already handled by user sign of distance
+  const closed = true;
+  const shapePoints = off.map(p => [p.x, p.y, p.z]);
+  const linePts = off.concat([off[0].clone()]);
+  const geom = new THREE.BufferGeometry().setFromPoints(linePts);
+  const mesh = new THREE.LineLoop(geom, new THREE.LineBasicMaterial({ color: '#f06595' }));
+  const name = (selectedObject.name || 'Shape') + '_Offset';
+  const obj = {
+    id: objectIdCounter++, name, type: selectedObject.type === 'circle' ? 'circle' : 'polyline',
+    mesh, layerId: currentLayerId, color: '#f06595', shapePoints, closed: true
+  };
+  mesh.userData = { objData: obj, shapePoints, closed: true };
+  scene.add(mesh); objects.push(obj); selectObject(obj); updateObjectsList();
+  setStatus(`OFFSET: khoảng cách ${distance} m — đã tạo ${name}.`);
+}
+
+function copySelected(dx, dy, dz) {
+  if (!selectedObject) {
+    showModal('COPY', 'Chọn đối tượng cần sao chép.');
+    return;
+  }
+  dx = Number(dx) || 0; dy = Number(dy) || 0; dz = Number(dz) || 0;
+  const o = selectedObject;
+  const p = o.mesh.position.clone();
+  p.x += dx; p.y += dy; p.z += dz;
+  const rot = [o.mesh.rotation.x, o.mesh.rotation.y, o.mesh.rotation.z];
+  const scale = [o.mesh.scale.x, o.mesh.scale.y, o.mesh.scale.z];
+  if (typeof duplicateObjectFrom === 'function') {
+    const copy = duplicateObjectFrom(o, o.name + '_Copy', p, rot);
+    if (copy && copy.mesh) copy.mesh.scale.set(scale[0], scale[1], scale[2]);
+    setStatus(`COPY: đã sao chép với vector (${dx}, ${dy}, ${dz}).`);
+  } else {
+    showModal('COPY', 'Không tìm thấy hàm nhân bản đối tượng.');
+  }
+}
+
+// --- 2D segment geometry (XY) for Trim / Extend ---
+function vcadSegIntersect(a1, a2, b1, b2) {
+  const ax = a1.x, ay = a1.y, bx = a2.x, by = a2.y;
+  const cx = b1.x, cy = b1.y, dx = b2.x, dy = b2.y;
+  const den = (ax - bx) * (cy - dy) - (ay - by) * (cx - dx);
+  if (Math.abs(den) < 1e-12) return null;
+  const t = ((ax - cx) * (cy - dy) - (ay - cy) * (cx - dx)) / den;
+  const u = -((ax - bx) * (ay - cy) - (ay - by) * (ax - cx)) / den;
+  if (t < -1e-9 || t > 1 + 1e-9 || u < -1e-9 || u > 1 + 1e-9) return null;
+  return new THREE.Vector3(ax + t * (bx - ax), ay + t * (by - ay), (a1.z + a2.z) * 0.5);
+}
+function vcadRaySegIntersect(origin, dir, b1, b2) {
+  // Ray origin + t*dir (t>=0) vs segment b1-b2
+  const ax = origin.x, ay = origin.y;
+  const dx = dir.x, dy = dir.y;
+  const cx = b1.x, cy = b1.y, ex = b2.x - b1.x, ey = b2.y - b1.y;
+  const den = dx * ey - dy * ex;
+  if (Math.abs(den) < 1e-12) return null;
+  const t = ((cx - ax) * ey - (cy - ay) * ex) / den;
+  const u = ((cx - ax) * dy - (cy - ay) * dx) / den;
+  if (t < 1e-8 || u < -1e-9 || u > 1 + 1e-9) return null;
+  return { t, point: new THREE.Vector3(ax + t * dx, ay + t * dy, origin.z) };
+}
+function vcadGetWorldPoly(obj) {
+  if (!obj || !obj.mesh) return [];
+  obj.mesh.updateMatrixWorld(true);
+  if (Array.isArray(obj.shapePoints) && obj.shapePoints.length >= 2) {
+    return obj.shapePoints.map(p => {
+      const v = new THREE.Vector3(Number(p[0]) || 0, Number(p[1]) || 0, Number(p[2]) || 0);
+      return v.applyMatrix4(obj.mesh.matrixWorld);
+    });
+  }
+  const geom = obj.mesh.geometry;
+  const pos = geom && geom.attributes && geom.attributes.position;
+  if (!pos || pos.count < 2) return [];
+  const pts = [];
+  for (let i = 0; i < pos.count; i++) {
+    const v = new THREE.Vector3().fromBufferAttribute(pos, i);
+    obj.mesh.localToWorld(v);
+    pts.push(v);
+  }
+  return pts;
+}
+function vcadIsCurve2d(obj) {
+  if (!obj) return false;
+  const t = String(obj.type || '').toLowerCase();
+  return ['line', 'line2d', 'polyline', 'rectangle', 'circle', 'arc', 'dxf-line', 'dxf-polyline', 'dxf-circle', 'dxf-arc'].some(k => t.includes(k.replace('dxf-', '')) || t === k) ||
+    (Array.isArray(obj.shapePoints) && obj.shapePoints.length >= 2);
+}
+function vcadRebuildCurve(obj, worldPts, closed) {
+  if (!obj || !worldPts || worldPts.length < 2) return;
+  // Store shapePoints in local space relative to mesh at origin of first point
+  const base = worldPts[0].clone();
+  const local = worldPts.map(p => [p.x - base.x, p.y - base.y, p.z - base.z]);
+  obj.shapePoints = worldPts.map(p => [p.x, p.y, p.z]); // keep world absolute like other draw tools
+  obj.closed = !!closed;
+  const meshPts = worldPts.map(p => new THREE.Vector3(p.x, p.y, p.z + 0.01));
+  if (closed && meshPts[0].distanceTo(meshPts[meshPts.length - 1]) > 1e-6) meshPts.push(meshPts[0].clone());
+  const geom = new THREE.BufferGeometry().setFromPoints(meshPts);
+  if (obj.mesh.geometry) obj.mesh.geometry.dispose();
+  obj.mesh.geometry = geom;
+  obj.mesh.position.set(0, 0, 0);
+  obj.mesh.rotation.set(0, 0, 0);
+  obj.mesh.scale.set(1, 1, 1);
+  // Switch type to polyline after edit
+  if (obj.type === 'rectangle' || obj.type === 'circle') obj.type = 'polyline';
+  if (closed) {
+    if (!(obj.mesh instanceof THREE.LineLoop)) {
+      const mat = obj.mesh.material;
+      scene.remove(obj.mesh);
+      obj.mesh = new THREE.LineLoop(geom, mat);
+      obj.mesh.userData = { objData: obj, shapePoints: obj.shapePoints, closed: true };
+      scene.add(obj.mesh);
+    }
+  }
+  obj.mesh.userData = { ...(obj.mesh.userData || {}), objData: obj, shapePoints: obj.shapePoints, closed: !!closed };
+}
+
+let editCurveMode = null; // 'trim' | 'extend'
+let trimCutters = [];
+
+function startTrimCommand() {
+  cancelDraw();
+  editCurveMode = 'trim';
+  trimCutters = [];
+  window.__vcadTrimPhase = 1;
+  window.__vcadExtendTarget = null;
+  controls.enabled = true;
+  setStatus('TRIM — Bước 1: chọn đường cắt (cutting edge). Enter → Bước 2 click đoạn cần bỏ. Esc hủy.');
+}
+function startExtendCommand() {
+  cancelDraw();
+  editCurveMode = 'extend';
+  trimCutters = [];
+  window.__vcadTrimPhase = 0;
+  window.__vcadExtendTarget = null;
+  controls.enabled = true;
+  setStatus('EXTEND — Chọn đường cần kéo dài, rồi chọn đường biên (boundary). Esc hủy.');
+}
+function cancelEditCurve() {
+  editCurveMode = null;
+  trimCutters = [];
+  window.__vcadTrimPhase = 0;
+  window.__vcadExtendTarget = null;
+  setStatus('Đã hủy Trim/Extend.');
+}
+
+function vcadAllCurveSegments(excludeIds) {
+  const segs = [];
+  const ex = new Set(excludeIds || []);
+  objects.forEach(o => {
+    if (ex.has(o.id) || o.hiddenByGroup || !vcadIsCurve2d(o)) return;
+    let pts = vcadGetWorldPoly(o);
+    if (pts.length < 2) return;
+    if (o.closed && pts[0].distanceTo(pts[pts.length - 1]) > 1e-6) pts = pts.concat([pts[0].clone()]);
+    for (let i = 0; i < pts.length - 1; i++) segs.push({ a: pts[i], b: pts[i + 1], obj: o });
+  });
+  return segs;
+}
+
+function extendCurveToBoundary(target, boundary) {
+  if (!target || !boundary || target.id === boundary.id) {
+    showModal('EXTEND', 'Cần chọn hai đường khác nhau: đường cần kéo dài và đường biên.');
+    return false;
+  }
+  let pts = vcadGetWorldPoly(target);
+  if (pts.length < 2) {
+    showModal('EXTEND', 'Đường đích không có đủ đỉnh.');
+    return false;
+  }
+  const bPts = vcadGetWorldPoly(boundary);
+  if (bPts.length < 2) {
+    showModal('EXTEND', 'Đường biên không hợp lệ.');
+    return false;
+  }
+  let bList = bPts.slice();
+  if (boundary.closed && bList[0].distanceTo(bList[bList.length - 1]) > 1e-6) bList.push(bList[0].clone());
+
+  // Thử kéo dài cả hai đầu, chọn đầu có giao gần nhất
+  const ends = [
+    { idx: 0, origin: pts[0].clone(), dir: new THREE.Vector3().subVectors(pts[0], pts[1]).normalize() },
+    { idx: pts.length - 1, origin: pts[pts.length - 1].clone(), dir: new THREE.Vector3().subVectors(pts[pts.length - 1], pts[pts.length - 2]).normalize() }
+  ];
+  let best = null;
+  for (const end of ends) {
+    if (end.dir.lengthSq() < 1e-12) continue;
+    for (let i = 0; i < bList.length - 1; i++) {
+      const hit = vcadRaySegIntersect(end.origin, end.dir, bList[i], bList[i + 1]);
+      if (hit && (!best || hit.t < best.t)) best = { t: hit.t, point: hit.point, idx: end.idx };
+    }
+  }
+  if (!best) {
+    setStatus('EXTEND: không tìm thấy giao với đường biên (thử hướng khác hoặc đường khác).');
+    return false;
+  }
+  pts = pts.map(p => p.clone());
+  pts[best.idx].copy(best.point);
+  vcadRebuildCurve(target, pts, !!target.closed);
+  selectObject(target);
+  updateObjectsList();
+  setStatus(`EXTEND: đã kéo dài đến biên (L≈${best.t.toFixed(3)} m).`);
+  return true;
+}
+
+function trimCurveAtClick(target, clickWorld, cutterObjs) {
+  let pts = vcadGetWorldPoly(target);
+  if (pts.length < 2) return false;
+  const closed = !!target.closed;
+  if (closed && pts[0].distanceTo(pts[pts.length - 1]) > 1e-6) pts = pts.concat([pts[0].clone()]);
+
+  // Collect intersections along the polyline parameterized by segment
+  const cuts = []; // { segIndex, t, point }
+  const cutters = (cutterObjs && cutterObjs.length) ? cutterObjs : objects.filter(o => o.id !== target.id && vcadIsCurve2d(o));
+  cutters.forEach(c => {
+    let cp = vcadGetWorldPoly(c);
+    if (cp.length < 2) return;
+    if (c.closed && cp[0].distanceTo(cp[cp.length - 1]) > 1e-6) cp = cp.concat([cp[0].clone()]);
+    for (let i = 0; i < pts.length - 1; i++) {
+      for (let j = 0; j < cp.length - 1; j++) {
+        const hit = vcadSegIntersect(pts[i], pts[i + 1], cp[j], cp[j + 1]);
+        if (hit) {
+          const len = pts[i].distanceTo(pts[i + 1]) || 1;
+          const t = pts[i].distanceTo(hit) / len;
+          cuts.push({ segIndex: i, t: Math.min(1, Math.max(0, t)), point: hit });
+        }
+      }
+    }
+  });
+  if (!cuts.length) {
+    setStatus('TRIM: không có giao điểm với đường cắt.');
+    return false;
+  }
+
+  // Build full parameter list of vertices + cut points along chain
+  const nodes = []; // {pos, key}
+  for (let i = 0; i < pts.length - 1; i++) {
+    nodes.push({ pos: pts[i].clone(), seg: i, t: 0 });
+    const onSeg = cuts.filter(c => c.segIndex === i).sort((a, b) => a.t - b.t);
+    onSeg.forEach(c => nodes.push({ pos: c.point.clone(), seg: i, t: c.t, cut: true }));
+  }
+  nodes.push({ pos: pts[pts.length - 1].clone(), seg: pts.length - 2, t: 1 });
+
+  // Find which sub-segment contains the click (nearest)
+  let bestSeg = -1, bestDist = Infinity;
+  for (let i = 0; i < nodes.length - 1; i++) {
+    const a = nodes[i].pos, b = nodes[i + 1].pos;
+    if (a.distanceTo(b) < 1e-9) continue;
+    // distance point to segment
+    const ab = new THREE.Vector3().subVectors(b, a);
+    const ap = new THREE.Vector3().subVectors(clickWorld, a);
+    const tt = Math.max(0, Math.min(1, ap.dot(ab) / ab.lengthSq()));
+    const proj = a.clone().addScaledVector(ab, tt);
+    const d = proj.distanceTo(clickWorld);
+    if (d < bestDist) { bestDist = d; bestSeg = i; }
+  }
+  if (bestSeg < 0) return false;
+
+  // Remove the clicked open piece between neighboring cut nodes (or ends)
+  // Keep pieces on either side of the removed segment
+  const removeFrom = bestSeg;
+  // Expand removal to whole piece between cut markers
+  let left = removeFrom, right = removeFrom + 1;
+  while (left > 0 && !nodes[left].cut) left--;
+  while (right < nodes.length - 1 && !nodes[right].cut) right++;
+
+  const leftPts = nodes.slice(0, left + 1).map(n => n.pos);
+  const rightPts = nodes.slice(right).map(n => n.pos);
+
+  // If closed curve, removal may open it into one polyline
+  const pieces = [];
+  if (leftPts.length >= 2) pieces.push(leftPts);
+  if (rightPts.length >= 2) pieces.push(rightPts);
+
+  if (!pieces.length) {
+    // whole curve removed
+    scene.remove(target.mesh);
+    if (target.mesh.geometry) target.mesh.geometry.dispose();
+    objects = objects.filter(o => o.id !== target.id);
+    selectedObject = null;
+    selectedObjects = [];
+    updateObjectsList();
+    setStatus('TRIM: đã xóa toàn bộ đường.');
+    return true;
+  }
+
+  // Update original with first piece; spawn extra pieces as new objects
+  vcadRebuildCurve(target, pieces[0], false);
+  target.closed = false;
+  for (let p = 1; p < pieces.length; p++) {
+    const sp = pieces[p];
+    const geom = new THREE.BufferGeometry().setFromPoints(sp.map(v => new THREE.Vector3(v.x, v.y, v.z + 0.01)));
+    const mesh = new THREE.Line(geom, new THREE.LineBasicMaterial({ color: target.color || '#5c7cfa' }));
+    const obj = {
+      id: objectIdCounter++,
+      name: (target.name || 'Curve') + '_T' + p,
+      type: 'polyline',
+      mesh,
+      layerId: target.layerId || currentLayerId,
+      color: target.color || '#5c7cfa',
+      shapePoints: sp.map(v => [v.x, v.y, v.z]),
+      closed: false
+    };
+    mesh.userData = { objData: obj, shapePoints: obj.shapePoints, closed: false };
+    scene.add(mesh);
+    objects.push(obj);
+  }
+  selectObject(target);
+  updateObjectsList();
+  setStatus(`TRIM: đã cắt bỏ đoạn được chọn (${pieces.length} phần giữ lại).`);
+  return true;
+}
+
+
 
 // Selection & Properties
 function updateActualDimensions(objData) {
@@ -1037,8 +1498,71 @@ function setupEvents() {
       if(drawMode==='rectangle'||drawMode==='circle'){if(drawPoints.length===0)drawPoints.push(p);else{drawPoints.push(p);finishDraw();}}
       else if(drawMode==='line'){drawPoints.push(p);if(drawPoints.length>=2)finishDraw();}
       else if(drawMode==='arc'){drawPoints.push(p);if(drawPoints.length>=3){makeArcFromPoints(drawPoints);cancelDraw();}else redrawPreview();}
-      else{drawPoints.push(p);redrawPreview();}
+      else{
+        if(drawMode==='polyline'&&drawPoints.length>=3&&p.distanceTo(drawPoints[0])<Math.max(0.15,0.02*drawPoints[0].distanceTo(p)+0.05)){
+          window.__vcadClosePoly=true;finishDraw();setStatus('Đã đóng Polyline gần điểm đầu.');return;
+        }
+        drawPoints.push(p);redrawPreview();
+      }
       return;
+    }
+    // --- Trim / Extend interactive ---
+    if(typeof editCurveMode!=='undefined' && editCurveMode){
+      const world=pointerWorld(e);
+      if(editCurveMode==='trim'){
+        // Phase 1: collect cutters until Enter (trimCutters empty means still selecting cutters if status says step 1)
+        // Heuristic: if prompt still step 1 OR user hasn't pressed Enter after selecting at least one,
+        // first clicks add cutters; after Enter, clicks trim targets.
+        // Simpler UX: first click(s) with Ctrl add cutters; without Ctrl on a curve = if no cutters yet, treat as cutter; if cutters exist and click is NOT only adding, trim.
+        // Practical CAD-like: 
+        //  - Click curve → add as cutter (highlight)
+        //  - Press Enter → switch to cut mode
+        //  - Click target segment → trim
+        // We use a flag on window
+        if(!window.__vcadTrimPhase) window.__vcadTrimPhase = 1;
+        if(window.__vcadTrimPhase===1){
+          if(hitObj && vcadIsCurve2d(hitObj)){
+            if(!trimCutters.find(c=>c.id===hitObj.id)){
+              trimCutters.push(hitObj);
+              setSelectionMany(trimCutters, hitObj);
+              setStatus('TRIM — Đã chọn '+trimCutters.length+' đường cắt. Tiếp tục chọn hoặc Enter để cắt đoạn.');
+            }
+          }
+          return;
+        } else {
+          // phase 2: trim
+          if(hitObj && vcadIsCurve2d(hitObj) && world){
+            const cutters = trimCutters.filter(c=>c.id!==hitObj.id);
+            if(!cutters.length){
+              // use all other curves
+              trimCurveAtClick(hitObj, world, null);
+            } else {
+              trimCurveAtClick(hitObj, world, cutters);
+            }
+            // stay in trim for multiple cuts
+            setStatus('TRIM — Tiếp tục click đoạn cần bỏ, hoặc Esc thoát.');
+          }
+          return;
+        }
+      }
+      if(editCurveMode==='extend'){
+        if(!window.__vcadExtendTarget){
+          if(hitObj && vcadIsCurve2d(hitObj)){
+            window.__vcadExtendTarget = hitObj;
+            setSelectionMany([hitObj], hitObj);
+            setStatus('EXTEND — Đã chọn đường cần kéo dài. Tiếp theo chọn đường biên (boundary).');
+          }
+          return;
+        } else {
+          if(hitObj && vcadIsCurve2d(hitObj)){
+            extendCurveToBoundary(window.__vcadExtendTarget, hitObj);
+            window.__vcadExtendTarget = null;
+            // allow another extend
+            setStatus('EXTEND — Chọn đường cần kéo dài (hoặc Esc thoát).');
+          }
+          return;
+        }
+      }
     }
     if(hitObj){
       if(e.ctrlKey||e.metaKey){
@@ -1060,7 +1584,23 @@ function setupEvents() {
   });
   canvas.addEventListener('pointermove',e=>{
     const world=pointerWorld(e);
-    if(world)document.getElementById('coords-display').textContent=`X: ${world.x.toFixed(2)} Y: ${world.y.toFixed(2)} Z: ${world.z.toFixed(2)}`;
+    if(world){
+      const label=`X: ${world.x.toFixed(2)} Y: ${world.y.toFixed(2)} Z: ${world.z.toFixed(2)}`;
+      const cd=document.getElementById('coords-display'); if(cd) cd.textContent=label;
+      const cc=document.getElementById('cmd-coords'); if(cc) cc.textContent=label;
+      // Khoảng cách tạm khi đang vẽ (kiểu Rhino)
+      if(drawMode && drawPoints.length){
+        const prev=drawPoints[drawPoints.length-1];
+        const dist=prev.distanceTo(world);
+        const pr=document.getElementById('cmd-prompt');
+        if(pr && !['rectangle','circle'].includes(drawMode)) pr.textContent=`${drawMode.toUpperCase()} — điểm tiếp theo · L=${dist.toFixed(3)} m · Esc hủy`;
+        else if(pr && drawMode==='circle' && drawPoints.length===1) pr.textContent=`CIRCLE — bán kính R=${dist.toFixed(3)} m`;
+        else if(pr && drawMode==='rectangle' && drawPoints.length===1){
+          const dx=Math.abs(world.x-prev.x), dy=Math.abs(world.y-prev.y);
+          pr.textContent=`RECTANGLE — ${dx.toFixed(3)} × ${dy.toFixed(3)} m`;
+        }
+      }
+    }
     if(rotateObjectDrag){
       const dx=e.clientX-rotateDragLast.x,dy=e.clientY-rotateDragLast.y;
       const targets=selectedObjects.length?selectedObjects:(selectedObject?[selectedObject]:[]);
@@ -1118,6 +1658,9 @@ function setupEvents() {
   document.getElementById('btn-cancel-draw').onclick=cancelDraw;
   document.addEventListener('keydown',e=>{
     if(e.key==='Escape'&&drawMode){cancelDraw();setStatus('Đã hủy lệnh vẽ.');}
+    if(e.key==='Escape'&&editCurveMode){cancelEditCurve();}
+    if(e.key==='Enter'&&editCurveMode==='trim'&&trimCutters.length){window.__vcadTrimPhase=2;setStatus('TRIM — Bước 2: click phần đường cần cắt bỏ ('+trimCutters.length+' cutting edge). Esc thoát.');}
+    if((e.key==='c'||e.key==='C')&&drawMode==='polyline'&&drawPoints.length>=3&&!(e.target&&e.target.matches&&e.target.matches('input,textarea'))){e.preventDefault();window.__vcadClosePoly=true;finishDraw();setStatus('Đã đóng Polyline (Closed). Có thể Extrude.');}
     if(e.key==='Enter'&&drawMode==='polyline'&&(!e.target.matches('input')||!e.target.value.trim())){e.preventDefault();finishDraw();}
   });
   // Creation buttons
@@ -1222,6 +1765,10 @@ function setupEvents() {
   // Advanced Tools handlers
   document.getElementById('btn-mirror').onclick = () => executeCommand('mirror');
   document.getElementById('btn-array').onclick = () => executeCommand('array');
+  document.getElementById('btn-copy')?.addEventListener('click', () => executeCommand('copy'));
+  document.getElementById('btn-offset')?.addEventListener('click', () => executeCommand('offset'));
+  document.getElementById('btn-trim')?.addEventListener('click', () => executeCommand('trim'));
+  document.getElementById('btn-extend')?.addEventListener('click', () => executeCommand('extend'));
   document.getElementById('btn-extrude').onclick = () => executeCommand('extrude');
   document.getElementById('btn-bool-union').onclick = () => executeCommand('union');
   document.getElementById('btn-bool-diff').onclick = () => executeCommand('difference');
@@ -1362,7 +1909,7 @@ function executeCommand(rawCmd) {
   const normalized=rawCmd.trim().toLowerCase();
   const parts=normalized.split(/[\s,;]+/).filter(Boolean);
   let cmd=parts.shift()||'',args=parts;
-  const aliases={b:'box',rec:'rectangle',rect:'rectangle',l:'line',pl:'polyline',c:'circle',cr:'circle',cd:'circle',a:'arc',dim:'dim',d:'dim',mirron:'mirror',mi:'mirror',m:'move',ro:'rotate',sc:'scale',ex:'extrude',del:'delete',u:'union',dif:'difference',inter:'intersection',imp:'import'};
+  const aliases={b:'box',rec:'rectangle',rect:'rectangle',l:'line',pl:'polyline',c:'circle',cr:'circle',cd:'circle',a:'arc',dim:'dim',d:'dim',mirron:'mirror',mi:'mirror',m:'move',ro:'rotate',sc:'scale',ex:'extrude',del:'delete',u:'union',dif:'difference',inter:'intersection',imp:'import',o:'offset',off:'offset',cp:'copy',co:'copy',tr:'trim',ext:'extend'};
   let alias=cmd;
   if(cmd==='c'&&['r','d'].includes(args[0])){alias=args[0]==='d'?'cd':'cr';args=args.slice(1);cmd='circle';}
   else cmd=aliases[cmd]||cmd;
@@ -1403,8 +1950,19 @@ function executeCommand(rawCmd) {
     case 'polyline':setDrawMode('polyline');break;
     case 'extrude':{
       const h=validNums?nums[0]:Number(document.getElementById('draw-height').value);
-      if(Number.isFinite(h)&&h!==0)extrudeSelected(h);else ask('EXTRUDE','Nhập chiều cao đùn (m)','2',v=>extrudeSelected(v[0]));break;
+      const axisArg=(validNums&&args[1])?String(args[1]).toLowerCase():(document.getElementById('extrude-axis')?.value||'z');
+      if(Number.isFinite(h)&&h!==0)extrudeSelected(h,axisArg);else ask('EXTRUDE','Nhập chiều cao đùn (m). Có thể thêm trục: EXTRUDE 2 Z','2',v=>extrudeSelected(v[0],axisArg));break;
     }
+    case 'offset':{
+      if(validNums&&Number.isFinite(nums[0])&&nums[0]!==0){offsetSelected(nums[0]);break;}
+      ask('OFFSET','Nhập khoảng cách offset (m). Dương = ra ngoài, âm = vào trong.','0.5',v=>offsetSelected(v[0]));break;
+    }
+    case 'copy':{
+      if(validNums&&nums.length>=2){copySelected(nums[0],nums[1],nums[2]||0);break;}
+      ask('COPY','Nhập vector sao chép dx, dy [, dz] (m). Ví dụ: 5,0,0','5,0,0',v=>copySelected(v[0],v[1]||0,v[2]||0));break;
+    }
+    case 'trim': startTrimCommand(); break;
+    case 'extend': startExtendCommand(); break;
     case 'dim': startDimensionCommand();break;
     case 'import': document.getElementById('file-append-input').click();break;
     case 'rotate':{
@@ -1630,11 +2188,21 @@ function initDockLayout(){
   const setDock=(panelId,where)=>{
     const panel=panels[panelId]; if(!panel)return;
     const sel=document.querySelector('[data-dock-target="'+panelId+'"]');
-    if(sel && [...sel.options].some(o=>o.value===where))sel.value=where;
-    panel.classList.remove('vcad-floating');
-    panel.style.removeProperty('left');panel.style.removeProperty('top');panel.style.removeProperty('right');panel.style.removeProperty('width');panel.style.removeProperty('height');
-    panel.classList.remove('vcad-panel-hidden');
+    // Chuẩn hóa vị trí hợp lệ theo từng panel
+    if(panelId==='tools-panel' && where!=='bottom') where='left';
+    if(panelId==='properties-panel' && where!=='bottom') where='right';
+    if(sel && [...sel.options].some(o=>o.value===where)) sel.value=where;
+    panel.classList.remove('vcad-floating','vcad-drop-target','vcad-panel-hidden');
+    panel.style.removeProperty('position');
+    panel.style.removeProperty('z-index');
+    panel.style.removeProperty('left');
+    panel.style.removeProperty('top');
+    panel.style.removeProperty('right');
+    panel.style.removeProperty('width');
+    panel.style.removeProperty('height');
+    body.classList.remove(panelId==='tools-panel'?'vcad-hide-tools':'vcad-hide-props');
     apply();
+    setTimeout(()=>{if(camera&&renderer)onWindowResize();},80);
   };
   const apply=()=>{
     const a=document.querySelector('[data-dock-target="tools-panel"]')?.value||'left';
@@ -1659,7 +2227,22 @@ function initDockLayout(){
     panel.insertBefore(bar,panel.firstChild);
     bar.querySelector('[data-action="hide"]').addEventListener('click',()=>{panel.classList.add('vcad-panel-hidden');body.classList.toggle(id==='tools-panel'?'vcad-hide-tools':'vcad-hide-props',true);updatePanelMenu();setTimeout(()=>{if(camera&&renderer)onWindowResize();},50);});
     bar.querySelector('[data-action="float"]').addEventListener('click',()=>{panel.classList.toggle('vcad-floating');if(panel.classList.contains('vcad-floating')){panel.classList.remove('vcad-panel-hidden');body.classList.remove(id==='tools-panel'?'vcad-hide-tools':'vcad-hide-props');panel.style.position='fixed';panel.style.zIndex='180';}else{panel.style.removeProperty('position');panel.style.removeProperty('z-index');}setTimeout(()=>{if(camera&&renderer)onWindowResize();},80);});
-    bar.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;bar.setPointerCapture(e.pointerId);const sx=e.clientX,sy=e.clientY,rect=panel.getBoundingClientRect();let moved=false;const move=ev=>{if(!panel.classList.contains('vcad-floating')&&Math.hypot(ev.clientX-sx,ev.clientY-sy)>8){panel.classList.add('vcad-floating');panel.style.position='fixed';panel.style.zIndex='180';panel.style.width=Math.max(250,rect.width)+'px';panel.style.height=Math.max(180,rect.height)+'px';panel.style.left=Math.max(0,rect.left)+'px';panel.style.top=Math.max(0,rect.top)+'px';panel.style.right='auto';moved=true;}if(panel.classList.contains('vcad-floating')){panel.style.left=Math.max(0,Math.min(window.innerWidth-100,ev.clientX-Math.min(sx-rect.left,rect.width-50)))+'px';panel.style.top=Math.max(0,Math.min(window.innerHeight-50,ev.clientY-(sy-rect.top)))+'px';document.querySelectorAll('#tools-panel,#properties-panel').forEach(x=>x.classList.remove('vcad-drop-target'));const edge=ev.clientX<80?'left':ev.clientX>window.innerWidth-80?'right':ev.clientY>window.innerHeight-100?'bottom':null;if(edge&&edge!=='bottom'&&id==='tools-panel'&&edge==='left'||edge==='right'&&id==='properties-panel'||edge==='bottom'){panel.classList.add('vcad-drop-target');panel.dataset.dropEdge=edge;}else delete panel.dataset.dropEdge;}};const end=()=>{bar.removeEventListener('pointermove',move);bar.removeEventListener('pointerup',end);panel.classList.remove('vcad-drop-target');if(panel.dataset.dropEdge){const edge=panel.dataset.dropEdge;delete panel.dataset.dropEdge;setDock(id,edge==='bottom'?'bottom':edge); } else if(panel.classList.contains('vcad-floating')){try{localStorage.setItem('vcad-floating-'+id,JSON.stringify({left:panel.style.left,top:panel.style.top,width:panel.style.width,height:panel.style.height}));}catch(_){}}};bar.addEventListener('pointermove',move);bar.addEventListener('pointerup',end);});
+    bar.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;bar.setPointerCapture(e.pointerId);const sx=e.clientX,sy=e.clientY,rect=panel.getBoundingClientRect();let moved=false;const move=ev=>{if(!panel.classList.contains('vcad-floating')&&Math.hypot(ev.clientX-sx,ev.clientY-sy)>8){panel.classList.add('vcad-floating');panel.style.position='fixed';panel.style.zIndex='180';panel.style.width=Math.max(250,rect.width)+'px';panel.style.height=Math.max(180,rect.height)+'px';panel.style.left=Math.max(0,rect.left)+'px';panel.style.top=Math.max(0,rect.top)+'px';panel.style.right='auto';moved=true;}if(panel.classList.contains('vcad-floating')){panel.style.left=Math.max(0,Math.min(window.innerWidth-100,ev.clientX-Math.min(sx-rect.left,rect.width-50)))+'px';panel.style.top=Math.max(0,Math.min(window.innerHeight-50,ev.clientY-(sy-rect.top)))+'px';document.querySelectorAll('#tools-panel,#properties-panel').forEach(x=>x.classList.remove('vcad-drop-target'));const edge=ev.clientX<80?'left':ev.clientX>window.innerWidth-80?'right':ev.clientY>window.innerHeight-100?'bottom':null;const canDrop=(edge==='left'&&id==='tools-panel')||(edge==='right'&&id==='properties-panel')||(edge==='bottom');if(edge&&canDrop){panel.classList.add('vcad-drop-target');panel.dataset.dropEdge=edge;}else{panel.classList.remove('vcad-drop-target');delete panel.dataset.dropEdge;}}};const end=()=>{bar.removeEventListener('pointermove',move);bar.removeEventListener('pointerup',end);panel.classList.remove('vcad-drop-target');if(panel.dataset.dropEdge){const edge=panel.dataset.dropEdge;delete panel.dataset.dropEdge;const where=edge==='bottom'?'bottom':(id==='tools-panel'?'left':'right');panel.classList.remove('vcad-floating');panel.style.removeProperty('position');panel.style.removeProperty('z-index');panel.style.removeProperty('left');panel.style.removeProperty('top');panel.style.removeProperty('right');panel.style.removeProperty('width');panel.style.removeProperty('height');setDock(id,where);} else if(panel.classList.contains('vcad-floating')){try{localStorage.setItem('vcad-floating-'+id,JSON.stringify({left:panel.style.left,top:panel.style.top,width:panel.style.width,height:panel.style.height}));}catch(_){}}};bar.addEventListener('pointermove',move);bar.addEventListener('pointerup',end);});
+  });
+  // Khôi phục vị trí cửa sổ nổi đã lưu
+  Object.entries(panels).forEach(([id,panel])=>{
+    try{
+      const saved=JSON.parse(localStorage.getItem('vcad-floating-'+id)||'null');
+      if(saved&&saved.left&&saved.top){
+        panel.classList.add('vcad-floating');
+        panel.style.position='fixed';
+        panel.style.zIndex='180';
+        panel.style.left=saved.left;
+        panel.style.top=saved.top;
+        if(saved.width)panel.style.width=saved.width;
+        if(saved.height)panel.style.height=saved.height;
+      }
+    }catch(_){}
   });
   const menu=document.getElementById('panel-menu'),menuBtn=document.getElementById('btn-panel-menu');
   const updatePanelMenu=()=>{document.querySelectorAll('[data-panel-show]').forEach(btn=>{const id=btn.dataset.panelShow;btn.innerHTML=(panels[id].classList.contains('vcad-panel-hidden')?'□ Hiện ':'✓ Ẩn ')+panelNames[id];});};
