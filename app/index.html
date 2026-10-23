@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VC@D 1.2.9.1</title>
+<title>VC@D 1.2.10</title>
 <!-- Tailwind CSS & FontAwesome -->
 <script src="./vendor/tailwindcss.js"></script>
 <link rel="stylesheet" href="./vendor/fontawesome/css/all.min.css">
@@ -499,7 +499,7 @@
   <div class="flex items-center gap-3">
     <div class="font-bold text-sm tracking-wide flex items-center gap-2 select-none">
       <i class="fa-solid fa-cube"></i> VC@D
-      <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-500/30 text-cyan-300/90 bg-cyan-500/10">1.2.9.1</span>
+      <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-500/30 text-cyan-300/90 bg-cyan-500/10">1.2.10</span>
     </div>
     <div class="h-4 w-[1px] bg-[#383e4c]"></div>
     <div id="drawing-title-wrap" class="flex items-center gap-1.5 max-w-[150px] min-w-[90px] text-xs text-gray-300" title="Tên bản vẽ hiện tại">
@@ -1014,14 +1014,22 @@ function init() {
   createObject('box', { name: 'Box_01', pos: [0, 0, 1], color: '#5c7cfa' });
   createObject('cylinder', { name: 'Cylinder_01', pos: [4, 0, 1], color: '#38d9a9' });
 
-  updateLayersUI();
-  updateObjectsList();
-  initAdvancedTools();
-  initUiCustomization();
-initDockLayout();
-  
+  try { updateLayersUI(); } catch (e) { console.warn('layers', e); }
+  try { updateObjectsList(); } catch (e) { console.warn('objects', e); }
+  try { initAdvancedTools(); } catch (e) { console.warn('advanced', e); }
+  try { initUiCustomization(); } catch (e) { console.warn('ui', e); }
+  try { initDockLayout(); } catch (e) { console.warn('dock', e); }
+
   window.addEventListener('resize', onWindowResize);
-if(window.ResizeObserver){const ro=new ResizeObserver(()=>onWindowResize());ro.observe(document.getElementById('viewport-container'));}
+  if (window.ResizeObserver) {
+    try {
+      const ro = new ResizeObserver(() => { try { onWindowResize(); } catch (_) {} });
+      const vc = document.getElementById('viewport-container');
+      if (vc) ro.observe(vc);
+    } catch (_) {}
+  }
+  // Tránh kích thước 0 lúc khởi động
+  setTimeout(() => { try { onWindowResize(); } catch (_) {} }, 50);
   animate();
 }
 
@@ -1174,17 +1182,19 @@ function refreshProperties() {
 function setDrawMode(mode) {
   cancelDraw(); drawMode=mode; drawPoints=[];
   lastCommandRaw = mode; lastCommand = mode;
-  // Giữ OrbitControls: LMB dành cho vẽ điểm, RMB xoay view, MMB/scroll zoom — OSNAP vẫn qua pointerWorld
+  // LMB = vẽ điểm; RMB = xoay; scroll = zoom. Không gán LEFT=-1 (gây lỗi một số bản OrbitControls).
   if (controls) {
     controls.enabled = true;
     controls.enablePan = true;
     controls.enableZoom = true;
     controls.enableRotate = true;
-    if (controls.mouseButtons) {
-      controls.mouseButtons.LEFT = -1; // không xoay bằng LMB khi đang vẽ
-      controls.mouseButtons.MIDDLE = (typeof THREE !== 'undefined' && THREE.MOUSE) ? THREE.MOUSE.DOLLY : 1;
-      controls.mouseButtons.RIGHT = (typeof THREE !== 'undefined' && THREE.MOUSE) ? THREE.MOUSE.ROTATE : 2;
-    }
+    try {
+      if (controls.mouseButtons && typeof THREE !== 'undefined' && THREE.MOUSE) {
+        controls.mouseButtons.LEFT = THREE.MOUSE.PAN; // LMB không xoay khi vẽ (tránh xoay nhầm)
+        controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
+        controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+      }
+    } catch (_) {}
   }
   const tips = {
     line: 'LINE — LMB điểm · RMB xoay view · Shift Ortho · Esc hủy.',
@@ -1215,11 +1225,13 @@ function cancelDraw() {
   drawMode=null;drawPoints=[];
   if (controls) {
     controls.enabled = true;
-    if (controls.mouseButtons && typeof THREE !== 'undefined' && THREE.MOUSE) {
-      controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
-      controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
-      controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
-    }
+    try {
+      if (controls.mouseButtons && typeof THREE !== 'undefined' && THREE.MOUSE) {
+        controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+        controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
+        controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+      }
+    } catch (_) {}
   }
 }
 function finishDraw() {
@@ -2018,7 +2030,7 @@ function setupEvents() {
     mouse.x=((e.clientX-r.left)/r.width)*2-1;
     mouse.y=-((e.clientY-r.top)/r.height)*2+1;
     raycaster.setFromCamera(mouse,camera);
-    const hits=raycaster.intersectObjects(objects.filter(o=>o.mesh.visible&&!o.hiddenByGroup).map(o=>o.mesh),true);
+    const hits=raycaster.intersectObjects(objects.filter(o=>o.mesh&&o.mesh.visible&&!o.hiddenByGroup).map(o=>o.mesh),true);
     const hitObj=hits.length?(hits[0].object.userData.objData || hits[0].object.parent?.userData?.objData || hits[0].object.parent?.parent?.userData?.objData):null;
     if(e.button===2 && hitObj){
       if(!selectedObjects.includes(hitObj))setSelectionMany([hitObj],hitObj);
@@ -2029,7 +2041,7 @@ function setupEvents() {
     if(drawMode){
       const world=pointerWorld(e);if(!world)return;
       let p=world.clone();
-      if(drawMode!=='line'&&drawMode!=='polyline')p.z=0;
+      if(drawMode!=='line'&&drawMode!=='polyline'&&drawMode!=='spline')p.z=0;
       if((e.shiftKey||orthoEnabled)&&drawPoints.length){const prev=drawPoints[drawPoints.length-1],dx=p.x-prev.x,dy=p.y-prev.y,dz=p.z-prev.z;if(Math.abs(dx)>=Math.abs(dy)){p.y=prev.y;}else{p.x=prev.x;}if(drawMode==='line'||drawMode==='polyline'){if(Math.abs(dz)>Math.max(Math.abs(dx),Math.abs(dy))) {p.x=prev.x;p.y=prev.y;} else p.z=prev.z;}}
       if(drawMode==='rectangle'||drawMode==='circle'){if(drawPoints.length===0)drawPoints.push(p);else{drawPoints.push(p);finishDraw();}}
       else if(drawMode==='line'){drawPoints.push(p);if(drawPoints.length>=2)finishDraw();}
@@ -2259,7 +2271,7 @@ function setupEvents() {
       }
       return;
     }
-    if(drawMode&&world){let p=world.clone();if(drawMode!=='line'&&drawMode!=='polyline')p.z=0;if((e.shiftKey||orthoEnabled)&&drawPoints.length){const prev=drawPoints[drawPoints.length-1],dx=p.x-prev.x,dy=p.y-prev.y,dz=p.z-prev.z;if(Math.abs(dx)>=Math.abs(dy))p.y=prev.y;else p.x=prev.x;if((drawMode==='line'||drawMode==='polyline')&&Math.abs(dz)>Math.max(Math.abs(dx),Math.abs(dy))){p.x=prev.x;p.y=prev.y;}else p.z=prev.z;}redrawPreview(p);return;}
+    if(drawMode&&world){let p=world.clone();if(drawMode!=='line'&&drawMode!=='polyline'&&drawMode!=='spline')p.z=0;if((e.shiftKey||orthoEnabled)&&drawPoints.length){const prev=drawPoints[drawPoints.length-1],dx=p.x-prev.x,dy=p.y-prev.y,dz=p.z-prev.z;if(Math.abs(dx)>=Math.abs(dy))p.y=prev.y;else p.x=prev.x;if((drawMode==='line'||drawMode==='polyline')&&Math.abs(dz)>Math.max(Math.abs(dx),Math.abs(dy))){p.x=prev.x;p.y=prev.y;}else p.z=prev.z;}redrawPreview(p);return;}
     if(dragObject&&world){
       let dx=world.x-dragStartWorld.x,dy=world.y-dragStartWorld.y;
       if(e.shiftKey||orthoEnabled){if(Math.abs(dx)>=Math.abs(dy))dy=0;else dx=0;}
@@ -2285,7 +2297,7 @@ function setupEvents() {
     mouse.x=((e.clientX-r.left)/r.width)*2-1;
     mouse.y=-((e.clientY-r.top)/r.height)*2+1;
     raycaster.setFromCamera(mouse,camera);
-    const hits=raycaster.intersectObjects(objects.filter(o=>o.mesh.visible&&!o.hiddenByGroup).map(o=>o.mesh),true);
+    const hits=raycaster.intersectObjects(objects.filter(o=>o.mesh&&o.mesh.visible&&!o.hiddenByGroup).map(o=>o.mesh),true);
     const obj=hits.length?(hits[0].object.userData.objData||hits[0].object.parent?.userData?.objData||hits[0].object.parent?.parent?.userData?.objData):selectedObject;
     if(obj)openObjectContextMenu(e,obj);else e.preventDefault();
   });
@@ -3857,7 +3869,28 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
-window.onload = init;
+window.onload = function () {
+  try {
+    if (typeof THREE === 'undefined') {
+      throw new Error('Thiếu Three.js (app/vendor/three.min.js). Hãy giữ thư mục app/vendor khi cập nhật.');
+    }
+    if (typeof THREE.OrbitControls === 'undefined') {
+      throw new Error('Thiếu OrbitControls (app/vendor/OrbitControls.js).');
+    }
+    init();
+  } catch (err) {
+    console.error(err);
+    var msg = (err && err.message) ? err.message : String(err);
+    var box = document.getElementById('vcad-fatal-error');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'vcad-fatal-error';
+      box.style.cssText = 'position:fixed;inset:12px;z-index:10000;background:#5b1d1d;color:#fff;border:1px solid #ff6b6b;padding:12px;border-radius:8px;font:13px Segoe UI,sans-serif;white-space:pre-wrap';
+      document.body.appendChild(box);
+    }
+    box.textContent = 'VC@D không khởi tạo được.\n' + msg;
+  }
+};
 </script>
 
 
