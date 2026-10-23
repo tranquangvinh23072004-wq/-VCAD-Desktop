@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VC@D 1.2.17</title>
+<title>VC@D 1.2.18</title>
 <!-- Tailwind CSS & FontAwesome -->
 <script src="./vendor/tailwindcss.js"></script>
 <link rel="stylesheet" href="./vendor/fontawesome/css/all.min.css">
@@ -141,8 +141,39 @@
   #app-body.dock-tools-top .rhino-btn {
     padding: 3px 6px !important; font-size: 10px !important; white-space: nowrap;
   }
-  #app-body.dock-tools-top .vcad-panel-titlebar { display: none !important; }
+  /* Thanh kéo luôn hiện để di chuyển / dock lại */
+  #app-body.dock-tools-top .vcad-panel-titlebar {
+    display: flex !important;
+    height: 22px; min-height: 22px; padding: 0 8px;
+    border-bottom: 1px solid var(--border-soft);
+    cursor: grab; user-select: none;
+  }
+  #app-body.dock-tools-top .vcad-panel-title { font-size: 10px; }
   #app-body.dock-tools-top .vcad-resize-grip { display: none !important; }
+  /* Floating: cửa sổ có thể kéo tự do */
+  #tools-panel.vcad-floating, #properties-panel.vcad-floating {
+    position: fixed !important;
+    z-index: 120 !important;
+    max-height: min(70vh, 640px);
+    overflow: auto;
+    box-shadow: 0 12px 40px rgba(0,0,0,.45);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    width: min(320px, 90vw) !important;
+    resize: both;
+  }
+  #tools-panel.vcad-floating {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    max-height: min(75vh, 720px);
+    width: min(280px, 92vw) !important;
+  }
+  #tools-panel.vcad-floating > div {
+    border-right: none !important;
+    min-width: 0 !important;
+    width: 100%;
+  }
   /* Khi top: props full height bên phải */
   #app-body.dock-tools-top #properties-panel {
     grid-row: 2; max-height: none;
@@ -531,7 +562,7 @@
   <div class="flex items-center gap-3">
     <div class="font-bold text-sm tracking-wide flex items-center gap-2 select-none">
       <i class="fa-solid fa-cube"></i> VC@D
-      <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-500/30 text-cyan-300/90 bg-cyan-500/10">1.2.17</span>
+      <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-500/30 text-cyan-300/90 bg-cyan-500/10">1.2.18</span>
     </div>
     <div class="h-4 w-[1px] bg-[#383e4c]"></div>
     <div id="drawing-title-wrap" class="flex items-center gap-1.5 max-w-[150px] min-w-[90px] text-xs text-gray-300" title="Tên bản vẽ hiện tại">
@@ -4128,6 +4159,19 @@ function initDockLayout(){
   const selects=[...document.querySelectorAll('[data-dock-target]')];
   const panels={'tools-panel':tools,'properties-panel':props};
   const panelNames={'tools-panel':'Design / Công cụ','properties-panel':'Properties / Đối tượng'};
+  // Khôi phục khỏi trạng thái floating hỏng (không kéo / trôi giữa màn hình)
+  [tools, props].forEach(function(panel){
+    if(!panel) return;
+    panel.classList.remove('vcad-floating','vcad-drop-target','vcad-panel-hidden');
+    ['position','z-index','left','top','right','width','height','max-height'].forEach(function(p){
+      panel.style.removeProperty(p);
+    });
+  });
+  try {
+    localStorage.removeItem('vcad-floating-tools-panel');
+    localStorage.removeItem('vcad-floating-properties-panel');
+  } catch(_){}
+
   const setDock=(panelId,where)=>{
     const panel=panels[panelId]; if(!panel)return;
     const sel=document.querySelector('[data-dock-target="'+panelId+'"]');
@@ -4150,7 +4194,21 @@ function initDockLayout(){
   const apply=()=>{
     const a=document.querySelector('[data-dock-target="tools-panel"]')?.value||'top';
     const b=document.querySelector('[data-dock-target="properties-panel"]')?.value||'right';
-    body.classList.remove('dock-tools-bottom','dock-props-bottom','dock-both-bottom','dock-tools-top');
+    // Chọn dock = thoát floating, gắn lại vào layout
+    [tools, props].forEach(function(panel){
+      if(!panel) return;
+      panel.classList.remove('vcad-floating');
+      panel.style.removeProperty('position');
+      panel.style.removeProperty('z-index');
+      panel.style.removeProperty('left');
+      panel.style.removeProperty('top');
+      panel.style.removeProperty('right');
+      panel.style.removeProperty('width');
+      panel.style.removeProperty('height');
+    });
+    body.classList.remove('dock-tools-bottom','dock-props-bottom','dock-both-bottom','dock-tools-top','vcad-hide-tools','vcad-hide-props');
+    tools.classList.remove('vcad-panel-hidden');
+    props.classList.remove('vcad-panel-hidden');
     tools.classList.toggle('docked-bottom',a==='bottom');
     tools.classList.toggle('docked-top',a==='top');
     props.classList.toggle('docked-bottom',b==='bottom');
@@ -4183,28 +4241,133 @@ function initDockLayout(){
   try{const w=JSON.parse(localStorage.getItem('vcad-panel-widths')||'null');if(w?.tools)bodyEl.style.setProperty('--tools-width',w.tools);if(w?.props)bodyEl.style.setProperty('--props-width',w.props);}catch(_){}
   // Add a draggable title bar to each dockable panel. Drag to left/right/bottom edge to dock.
   Object.entries(panels).forEach(([id,panel])=>{
-    const bar=document.createElement('div');bar.className='vcad-panel-titlebar';bar.innerHTML=`<span class="vcad-panel-title">${panelNames[id]}</span><button class="vcad-panel-action" data-action="float" title="Cửa sổ nổi">↗</button><button class="vcad-panel-action" data-action="hide" title="Ẩn bảng">×</button>`;
-    panel.insertBefore(bar,panel.firstChild);
-    bar.querySelector('[data-action="hide"]').addEventListener('click',()=>{panel.classList.add('vcad-panel-hidden');body.classList.toggle(id==='tools-panel'?'vcad-hide-tools':'vcad-hide-props',true);updatePanelMenu();setTimeout(()=>{if(camera&&renderer)onWindowResize();},50);});
-    bar.querySelector('[data-action="float"]').addEventListener('click',()=>{panel.classList.toggle('vcad-floating');if(panel.classList.contains('vcad-floating')){panel.classList.remove('vcad-panel-hidden');body.classList.remove(id==='tools-panel'?'vcad-hide-tools':'vcad-hide-props');panel.style.position='fixed';panel.style.zIndex='180';}else{panel.style.removeProperty('position');panel.style.removeProperty('z-index');}setTimeout(()=>{if(camera&&renderer)onWindowResize();},80);});
-    bar.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;bar.setPointerCapture(e.pointerId);const sx=e.clientX,sy=e.clientY,rect=panel.getBoundingClientRect();let moved=false;const move=ev=>{if(!panel.classList.contains('vcad-floating')&&Math.hypot(ev.clientX-sx,ev.clientY-sy)>8){panel.classList.add('vcad-floating');panel.style.position='fixed';panel.style.zIndex='180';panel.style.width=Math.max(250,rect.width)+'px';panel.style.height=Math.max(180,rect.height)+'px';panel.style.left=Math.max(0,rect.left)+'px';panel.style.top=Math.max(0,rect.top)+'px';panel.style.right='auto';moved=true;}if(panel.classList.contains('vcad-floating')){panel.style.left=Math.max(0,Math.min(window.innerWidth-100,ev.clientX-Math.min(sx-rect.left,rect.width-50)))+'px';panel.style.top=Math.max(0,Math.min(window.innerHeight-50,ev.clientY-(sy-rect.top)))+'px';document.querySelectorAll('#tools-panel,#properties-panel').forEach(x=>x.classList.remove('vcad-drop-target'));const edge=ev.clientX<80?'left':ev.clientX>window.innerWidth-80?'right':ev.clientY>window.innerHeight-100?'bottom':null;const canDrop=(edge==='left'&&id==='tools-panel')||(edge==='right'&&id==='properties-panel')||(edge==='bottom');if(edge&&canDrop){panel.classList.add('vcad-drop-target');panel.dataset.dropEdge=edge;}else{panel.classList.remove('vcad-drop-target');delete panel.dataset.dropEdge;}}};const end=()=>{bar.removeEventListener('pointermove',move);bar.removeEventListener('pointerup',end);panel.classList.remove('vcad-drop-target');if(panel.dataset.dropEdge){const edge=panel.dataset.dropEdge;delete panel.dataset.dropEdge;const where=edge==='bottom'?'bottom':(id==='tools-panel'?'left':'right');panel.classList.remove('vcad-floating');panel.style.removeProperty('position');panel.style.removeProperty('z-index');panel.style.removeProperty('left');panel.style.removeProperty('top');panel.style.removeProperty('right');panel.style.removeProperty('width');panel.style.removeProperty('height');setDock(id,where);} else if(panel.classList.contains('vcad-floating')){try{localStorage.setItem('vcad-floating-'+id,JSON.stringify({left:panel.style.left,top:panel.style.top,width:panel.style.width,height:panel.style.height}));}catch(_){}}};bar.addEventListener('pointermove',move);bar.addEventListener('pointerup',end);});
-  });
-  // Khôi phục vị trí cửa sổ nổi đã lưu
-  Object.entries(panels).forEach(([id,panel])=>{
-    try{
-      const saved=JSON.parse(localStorage.getItem('vcad-floating-'+id)||'null');
-      if(saved&&saved.left&&saved.top){
+    // tránh gắn titlebar 2 lần khi hot-reload
+    if (panel.querySelector('.vcad-panel-titlebar')) return;
+    const bar=document.createElement('div');
+    bar.className='vcad-panel-titlebar';
+    bar.innerHTML=`<span class="vcad-panel-title">${panelNames[id]}</span>`+
+      `<span style="flex:1"></span>`+
+      `<button class="vcad-panel-action" data-action="float" title="Cửa sổ nổi / gắn lại">↗</button>`+
+      `<button class="vcad-panel-action" data-action="hide" title="Ẩn bảng">×</button>`;
+    panel.insertBefore(bar, panel.firstChild);
+
+    bar.querySelector('[data-action="hide"]').addEventListener('click',()=>{
+      panel.classList.add('vcad-panel-hidden');
+      body.classList.toggle(id==='tools-panel'?'vcad-hide-tools':'vcad-hide-props', true);
+      updatePanelMenu();
+      setTimeout(()=>{ if(camera&&renderer) onWindowResize(); }, 50);
+    });
+
+    bar.querySelector('[data-action="float"]').addEventListener('click',()=>{
+      if (panel.classList.contains('vcad-floating')) {
+        // Gắn lại theo dropdown
+        panel.classList.remove('vcad-floating');
+        panel.style.removeProperty('position');
+        panel.style.removeProperty('z-index');
+        panel.style.removeProperty('left');
+        panel.style.removeProperty('top');
+        panel.style.removeProperty('width');
+        panel.style.removeProperty('height');
+        apply();
+      } else {
+        const rect = panel.getBoundingClientRect();
         panel.classList.add('vcad-floating');
-        panel.style.position='fixed';
-        panel.style.zIndex='180';
-        panel.style.left=saved.left;
-        panel.style.top=saved.top;
-        if(saved.width)panel.style.width=saved.width;
-        if(saved.height)panel.style.height=saved.height;
+        panel.classList.remove('vcad-panel-hidden');
+        body.classList.remove(id==='tools-panel'?'vcad-hide-tools':'vcad-hide-props');
+        panel.style.position = 'fixed';
+        panel.style.zIndex = '180';
+        panel.style.left = Math.max(8, rect.left) + 'px';
+        panel.style.top = Math.max(8, rect.top) + 'px';
+        panel.style.width = Math.max(260, Math.min(rect.width, 360)) + 'px';
+        panel.style.height = Math.max(220, Math.min(rect.height, window.innerHeight * 0.7)) + 'px';
       }
-    }catch(_){}
+      setTimeout(()=>{ if(camera&&renderer) onWindowResize(); }, 80);
+    });
+
+    // Kéo titlebar: thả mép Trên / Trái / Phải / Dưới để dock
+    bar.addEventListener('pointerdown', e => {
+      if (e.target.closest('button')) return;
+      e.preventDefault();
+      bar.setPointerCapture(e.pointerId);
+      const sx = e.clientX, sy = e.clientY;
+      const rect = panel.getBoundingClientRect();
+      let ox = sx - rect.left, oy = sy - rect.top;
+      let dragging = false;
+
+      const onMove = ev => {
+        const dist = Math.hypot(ev.clientX - sx, ev.clientY - sy);
+        if (!dragging && dist > 6) {
+          dragging = true;
+          if (!panel.classList.contains('vcad-floating')) {
+            panel.classList.add('vcad-floating');
+            panel.style.position = 'fixed';
+            panel.style.zIndex = '180';
+            panel.style.width = Math.max(250, rect.width) + 'px';
+            panel.style.height = Math.max(180, Math.min(rect.height, window.innerHeight * 0.75)) + 'px';
+          }
+        }
+        if (!panel.classList.contains('vcad-floating')) return;
+        panel.style.left = Math.max(0, Math.min(window.innerWidth - 80, ev.clientX - ox)) + 'px';
+        panel.style.top = Math.max(0, Math.min(window.innerHeight - 40, ev.clientY - oy)) + 'px';
+        panel.style.right = 'auto';
+
+        // Highlight drop zone
+        document.querySelectorAll('#tools-panel,#properties-panel').forEach(x => x.classList.remove('vcad-drop-target'));
+        let edge = null;
+        if (ev.clientY < 56) edge = 'top';
+        else if (ev.clientY > window.innerHeight - 72) edge = 'bottom';
+        else if (ev.clientX < 72) edge = 'left';
+        else if (ev.clientX > window.innerWidth - 72) edge = 'right';
+
+        let can = false;
+        if (id === 'tools-panel' && (edge === 'top' || edge === 'left' || edge === 'bottom')) can = true;
+        if (id === 'properties-panel' && (edge === 'right' || edge === 'bottom')) can = true;
+        if (edge && can) {
+          panel.classList.add('vcad-drop-target');
+          panel.dataset.dropEdge = edge;
+        } else {
+          panel.classList.remove('vcad-drop-target');
+          delete panel.dataset.dropEdge;
+        }
+      };
+
+      const onUp = ev => {
+        try { bar.releasePointerCapture(e.pointerId); } catch(_){}
+        bar.removeEventListener('pointermove', onMove);
+        bar.removeEventListener('pointerup', onUp);
+        const edge = panel.dataset.dropEdge;
+        panel.classList.remove('vcad-drop-target');
+        delete panel.dataset.dropEdge;
+        if (!edge) return;
+        // Dock
+        panel.classList.remove('vcad-floating');
+        panel.style.removeProperty('position');
+        panel.style.removeProperty('z-index');
+        panel.style.removeProperty('left');
+        panel.style.removeProperty('top');
+        panel.style.removeProperty('width');
+        panel.style.removeProperty('height');
+        const tSel = document.querySelector('[data-dock-target="tools-panel"]');
+        const pSel = document.querySelector('[data-dock-target="properties-panel"]');
+        if (id === 'tools-panel' && tSel) {
+          if (edge === 'top') tSel.value = 'top';
+          else if (edge === 'bottom') tSel.value = 'bottom';
+          else tSel.value = 'left';
+        }
+        if (id === 'properties-panel' && pSel) {
+          if (edge === 'bottom') pSel.value = 'bottom';
+          else pSel.value = 'right';
+        }
+        apply();
+        setTimeout(()=>{ if(camera&&renderer) onWindowResize(); }, 80);
+      };
+
+      bar.addEventListener('pointermove', onMove);
+      bar.addEventListener('pointerup', onUp);
+    });
   });
-  const menu=document.getElementById('panel-menu'),menuBtn=document.getElementById('btn-panel-menu');
+
+const menu=document.getElementById('panel-menu'),menuBtn=document.getElementById('btn-panel-menu');
   const updatePanelMenu=()=>{document.querySelectorAll('[data-panel-show]').forEach(btn=>{const id=btn.dataset.panelShow;btn.innerHTML=(panels[id].classList.contains('vcad-panel-hidden')?'□ Hiện ':'✓ Ẩn ')+panelNames[id];});};
   window.updatePanelMenu=updatePanelMenu;
   menuBtn?.addEventListener('click',e=>{e.stopPropagation();menu.classList.toggle('hidden');updatePanelMenu();});
