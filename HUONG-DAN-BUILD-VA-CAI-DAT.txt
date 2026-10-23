@@ -1,0 +1,266 @@
+================================================================================
+  VC@D Desktop — HƯỚNG DẪN CHI TIẾT BUILD FILE CÀI & CÀI TRÊN MÁY KHÁC
+  Phiên bản tham chiếu: 1.2.9.1
+  Repo: https://github.com/tranquangvinh23072004-wq/-VCAD-Desktop
+================================================================================
+
+Mục tiêu: tạo file VCAD-Setup-x.x.x.exe để người khác cài một lần như
+phần mềm Windows thông thường (không cần Node.js, không cần GitHub trên máy họ).
+
+
+--------------------------------------------------------------------------------
+A. HIỂU RÕ CÁC LOẠI FILE
+--------------------------------------------------------------------------------
+
+1) ZIP mã nguồn (source)
+   - Có: package.json, main.js, preload.js, app/index.html…
+   - Không phải file cài. Người nhận không double-click là dùng được.
+   - Dùng để: sửa code, đẩy GitHub, hoặc build ra Setup.
+
+2) File Setup (VCAD-Setup-1.2.9.1.exe)  ← CÁI BẠN CẦN GỬI NGƯỜI KHÁC
+   - Bộ cài NSIS chuẩn Windows.
+   - Chạy → chọn thư mục → cài → có icon Desktop / Start Menu.
+   - Gỡ trong Cài đặt Windows như app khác.
+
+3) GitHub Releases
+   - Chỉ cần khi muốn nút "Cập nhật" trong app tự tải bản mới.
+   - Không bắt buộc nếu bạn chỉ gửi file .exe qua Zalo / Drive / USB.
+
+
+--------------------------------------------------------------------------------
+B. YÊU CẦU MÁY BUILD (máy của bạn)
+--------------------------------------------------------------------------------
+
+- Hệ điều hành: Windows 10/11, bản 64-bit (khuyến nghị mạnh).
+- Node.js LTS: https://nodejs.org  (cài xong mở lại CMD/PowerShell).
+- Ổ đĩa trống: khoảng 1–2 GB (Electron + cache lần đầu).
+- Kết nối Internet lần đầu (npm tải electron, electron-builder).
+
+Kiểm tra Node đã cài:
+
+  node -v
+  npm -v
+
+Cả hai lệnh phải in ra số version (ví dụ v20.x, 10.x).
+
+
+--------------------------------------------------------------------------------
+C. CHUẨN BỊ THƯ MỤC PROJECT
+--------------------------------------------------------------------------------
+
+Cấu trúc tối thiểu PHẢI có:
+
+  -VCAD-Desktop/                 (hoặc tên thư mục bạn đặt)
+  ├── main.js
+  ├── preload.js
+  ├── package.json
+  ├── app/
+  │   ├── index.html
+  │   └── vendor/                ← BẮT BUỘC
+  │       ├── three.min.js
+  │       ├── OrbitControls.js
+  │       ├── tailwindcss.js
+  │       └── fontawesome/ ...
+  └── (tuỳ chọn) .github/workflows/
+
+Cách lấy project đầy đủ:
+
+  Cách 1 — Clone từ GitHub:
+    git clone https://github.com/tranquangvinh23072004-wq/-VCAD-Desktop.git
+    cd -VCAD-Desktop
+
+  Cách 2 — Tải ZIP repo trên GitHub (Code → Download ZIP) rồi giải nén.
+
+Cập nhật bản vá (ví dụ 1.2.9.1):
+
+  - Giải nén VCAD-Desktop-1.2.9.1-source.zip
+  - GHI ĐÈ vào project:
+      package.json
+      main.js
+      preload.js
+      app/index.html
+  - KHÔNG xóa / không ghi đè thư mục app/vendor
+
+Kiểm tra version trong package.json:
+
+  "version": "1.2.9.1"
+
+Tên file Setup sẽ là: VCAD-Setup-1.2.9.1.exe
+
+
+--------------------------------------------------------------------------------
+D. BUILD FILE CÀI (Setup .exe)
+--------------------------------------------------------------------------------
+
+1. Mở CMD hoặc PowerShell.
+
+2. Vào đúng thư mục project (chỗ có package.json):
+
+     cd C:\đường\dẫn\tới\-VCAD-Desktop
+
+3. Cài dependency (chỉ cần mỗi lần clone mới hoặc sau khi đổi package.json):
+
+     npm install
+
+   Chờ tới khi xong, không báo lỗi đỏ nghiêm trọng.
+
+4. Build bộ cài Windows:
+
+     npm run dist
+
+   Lệnh này chạy: electron-builder --win nsis
+
+5. Chờ build xong (lần đầu có thể 5–15 phút).
+
+6. Mở thư mục:
+
+     dist\
+
+   File quan trọng:
+
+     VCAD-Setup-1.2.9.1.exe
+
+   Có thể thấy thêm:
+
+     VCAD-Setup-1.2.9.1.exe.blockmap
+     latest.yml
+     builder-effective-config.yaml
+     win-unpacked\          (thư mục chạy thử, không cần gửi)
+
+7. Chạy thử Setup trên chính máy build:
+
+     - Double-click VCAD-Setup-1.2.9.1.exe
+     - Cài vào thư mục mặc định hoặc chọn ổ khác
+     - Mở VC@D từ Desktop / Start Menu
+     - Thử: vẽ Line, OSNAP, Extrude, Space lặp lệnh…
+
+
+--------------------------------------------------------------------------------
+E. GỬI CHO NGƯỜI KHÁC & CÀI TRÊN MÁY KHÁC
+--------------------------------------------------------------------------------
+
+Bạn gửi:
+
+  VCAD-Setup-1.2.9.1.exe
+
+Qua: Zalo, Google Drive, USB, email… (file có thể 100–200MB).
+
+Người nhận (máy Windows 64-bit):
+
+  1. Tải file .exe về máy
+  2. Double-click
+  3. Nếu Windows SmartScreen hiện cảnh báo:
+       → "More info" / "Thêm thông tin"
+       → "Run anyway" / "Chạy dù vậy"
+     (Bình thường với app chưa mua chứng chỉ chữ ký số)
+  4. Next → chọn thư mục cài (nếu được hỏi) → Install
+  5. Mở VC@D từ Desktop hoặc Start Menu
+
+Gỡ cài đặt:
+
+  Cài đặt Windows → Ứng dụng → VC@D → Gỡ cài đặt
+
+
+--------------------------------------------------------------------------------
+F. (TUỲ CHỌN) ĐƯA LÊN GITHUB RELEASES — NÚT "CẬP NHẬT" TRONG APP
+--------------------------------------------------------------------------------
+
+Chỉ làm khi muốn người dùng đã cài bản từ Release có thể bấm "Cập nhật".
+
+1. Vào repo GitHub → Releases → "Draft a new release"
+2. Tag version:  v1.2.9.1     (phải khớp số trong package.json)
+3. Release title: VC@D 1.2.9.1
+4. Mô tả ngắn các sửa lỗi / tính năng
+5. Đính kèm (kéo thả):
+     - VCAD-Setup-1.2.9.1.exe
+     - VCAD-Setup-1.2.9.1.exe.blockmap  (nếu có)
+     - latest.yml                       (nếu có)
+6. Publish release
+
+Lưu ý:
+
+  - Nút Cập nhật chỉ hoạt động với bản đã cài từ Setup/Release,
+    không phải khi chạy npm start.
+  - Version mới phải CAO HƠN version đang cài (1.2.9.2 > 1.2.9.1).
+
+
+--------------------------------------------------------------------------------
+G. (TUỲ CHỌN) GITHUB ACTIONS TỰ BUILD
+--------------------------------------------------------------------------------
+
+Nếu repo đã có file trong .github/workflows/ (electron-builder):
+
+  1. git add / commit / push các file đã cập nhật lên nhánh main
+  2. Vào tab Actions → chờ workflow thành công (màu xanh)
+  3. Vào Releases → tải Setup
+
+Nếu KHÔNG có workflow:
+
+  - Actions sẽ không tạo .exe
+  - Phải build bằng tay như mục D
+
+
+--------------------------------------------------------------------------------
+H. LỖI THƯỜNG GẶP & CÁCH XỬ LÝ
+--------------------------------------------------------------------------------
+
+1) "npm không được nhận là lệnh"
+   → Cài Node.js LTS, đóng hết terminal, mở lại, gõ lại node -v
+
+2) npm install / npm run dist báo lỗi mạng
+   → Kiểm tra Internet, tắt VPN thử lại, hoặc:
+        npm config set registry https://registry.npmjs.org
+
+3) Build xong nhưng mở app trắng / không có 3D
+   → Thiếu app/vendor. Copy vendor từ bản repo đầy đủ.
+
+4) dist/ không có file .exe
+   → Đọc log cuối cùng trong terminal; thường là thiếu dependency
+     hoặc build không trên Windows.
+   → Xóa thư mục node_modules rồi:
+        npm install
+        npm run dist
+
+5) SmartScreen chặn trên máy người khác
+   → More info → Run anyway. Muốn hết cảnh báo cần code signing (trả phí).
+
+6) Antivirus xóa file Setup
+   → Thêm ngoại lệ thư mục dist; gửi lại file; hoặc nén ZIP file .exe rồi gửi.
+
+7) Version trong app vẫn là bản cũ
+   → Gỡ bản cũ rồi cài Setup mới, hoặc cài đè cùng thư mục.
+
+
+--------------------------------------------------------------------------------
+I. CHECKLIST NHANH
+--------------------------------------------------------------------------------
+
+[ ] Đã cài Node.js, gõ được node -v và npm -v
+[ ] Thư mục project có app/vendor đầy đủ
+[ ] package.json version đúng (ví dụ 1.2.9.1)
+[ ] Đã chạy: npm install
+[ ] Đã chạy: npm run dist
+[ ] Có file: dist\VCAD-Setup-1.2.9.1.exe
+[ ] Đã cài thử trên máy build, app mở và dùng được
+[ ] Đã gửi đúng file .exe (không gửi nhầm ZIP source)
+
+
+--------------------------------------------------------------------------------
+J. LỆNH TÓM TẮT (copy dùng nhanh)
+--------------------------------------------------------------------------------
+
+  cd C:\đường\dẫn\-VCAD-Desktop
+  npm install
+  npm run dist
+
+  → Lấy file: dist\VCAD-Setup-1.2.9.1.exe
+  → Gửi file đó cho người khác để cài một lần.
+
+
+================================================================================
+  Hết hướng dẫn. Nếu npm run dist báo lỗi, hãy sao chép TOÀN BỘ dòng đỏ
+  trong terminal để xử lý tiếp.
+================================================================================
+'''
+)
+print('written')
