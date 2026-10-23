@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VC@D 1.2.9</title>
+<title>VC@D 1.2.9.1</title>
 <!-- Tailwind CSS & FontAwesome -->
 <script src="./vendor/tailwindcss.js"></script>
 <link rel="stylesheet" href="./vendor/fontawesome/css/all.min.css">
@@ -51,7 +51,7 @@
     background: linear-gradient(180deg, #171a24 0%, #13161f 100%);
     border-color: var(--border-soft) !important;
   }
-  div:has(> #btn-export-dxf), div:has(> #btn-bool-union) { display:none !important; }
+  #btn-export-dxf, #btn-export-obj, #btn-bool-union, #btn-bool-diff, #btn-bool-inter { display:none !important; }
 
   #app-body {
     --tools-width: 240px;
@@ -95,13 +95,41 @@
   }
 
   #snap-marker {
-    position: absolute; width: 14px; height: 14px;
-    border: 2px solid var(--accent-2);
+    position: absolute; width: 16px; height: 16px;
+    border: 2px solid #22d3ee;
     border-radius: 50%;
-    box-shadow: 0 0 0 4px rgba(34,211,238,.2), 0 0 12px rgba(34,211,238,.45);
+    background: rgba(34,211,238,.25);
+    box-shadow: 0 0 0 4px rgba(34,211,238,.2), 0 0 14px rgba(34,211,238,.5);
     transform: translate(-50%,-50%);
-    pointer-events: none; z-index: 20; display: none;
+    pointer-events: none; z-index: 40; display: none;
   }
+  #snap-marker::after {
+    content: attr(data-label);
+    position: absolute; left: 18px; top: -4px;
+    font-size: 10px; font-weight: 700; color: #22d3ee;
+    background: rgba(12,14,20,.85); border: 1px solid rgba(34,211,238,.35);
+    border-radius: 4px; padding: 1px 5px; white-space: nowrap;
+    pointer-events: none;
+  }
+  /* Top toolbar dock */
+  #app-body.dock-tools-top {
+    grid-template-rows: auto minmax(0,1fr);
+    grid-template-columns: minmax(0,1fr) minmax(210px,var(--props-width));
+    grid-template-areas: "tools tools" "stage props";
+  }
+  #app-body.dock-tools-top #tools-panel {
+    max-width: none; width: auto; resize: none;
+    max-height: 160px; overflow: auto;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border);
+    display: flex; flex-direction: row; flex-wrap: wrap; align-content: flex-start;
+  }
+  #app-body.dock-tools-top #tools-panel > div {
+    border-bottom: none !important;
+    border-right: 1px solid var(--border-soft);
+    min-width: 160px; flex: 1 1 180px;
+  }
+
   #snap-status { color: var(--accent-2); font-size: 10px; font-weight: 700; letter-spacing: .04em; }
 
   .rhino-input {
@@ -433,15 +461,6 @@
   }
 
   /* Checkbox labels in OSNAP */
-  #tools-panel label:has(input[type="checkbox"]) {
-    border-radius: 4px;
-    padding: 1px 4px;
-    transition: background .15s, color .15s;
-  }
-  #tools-panel label:has(input[type="checkbox"]):hover {
-    background: rgba(34,211,238,.1);
-    color: #e8eaef;
-  }
 
   /* Autocomplete */
   .autocomplete-item {
@@ -480,7 +499,7 @@
   <div class="flex items-center gap-3">
     <div class="font-bold text-sm tracking-wide flex items-center gap-2 select-none">
       <i class="fa-solid fa-cube"></i> VC@D
-      <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-500/30 text-cyan-300/90 bg-cyan-500/10">1.2.9</span>
+      <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-500/30 text-cyan-300/90 bg-cyan-500/10">1.2.9.1</span>
     </div>
     <div class="h-4 w-[1px] bg-[#383e4c]"></div>
     <div id="drawing-title-wrap" class="flex items-center gap-1.5 max-w-[150px] min-w-[90px] text-xs text-gray-300" title="Tên bản vẽ hiện tại">
@@ -527,7 +546,7 @@
     
     <!-- Creation Panel -->
     <div class="p-3 border-b border-[#323642]">
-      <div class="flex items-center justify-between gap-1 mb-2"><h3 class="font-semibold text-gray-400 uppercase tracking-wider text-[10px]">Tạo Khối (Primitive 3D)</h3><select class="dock-select" data-dock-target="tools-panel" title="Vị trí bảng tạo khối"><option value="left">Trái</option><option value="bottom">Dưới</option></select></div>
+      <div class="flex items-center justify-between gap-1 mb-2"><h3 class="font-semibold text-gray-400 uppercase tracking-wider text-[10px]">Tạo Khối (Primitive 3D)</h3><select class="dock-select" data-dock-target="tools-panel" title="Vị trí bảng công cụ"><option value="left">Trái</option><option value="top">Trên</option><option value="bottom">Dưới</option></select></div>
       <div class="grid grid-cols-2 gap-1.5">
         <button data-create="box" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-cube text-indigo-400"></i> Box</button>
         <button data-create="sphere" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-globe text-cyan-400"></i> Sphere</button>
@@ -846,6 +865,7 @@ let currentLayerId = 1;
 let currentMode = 'move';
 let lastCommand = '';
 let lastCommandRaw = '';
+let pendingCmd = null; // {type, step, data}
 let polyEditMode = false;
 let polyEditHandles = [];
 let polyEditDragging = null;
@@ -1153,6 +1173,7 @@ function refreshProperties() {
 }
 function setDrawMode(mode) {
   cancelDraw(); drawMode=mode; drawPoints=[];
+  lastCommandRaw = mode; lastCommand = mode;
   // Giữ OrbitControls: LMB dành cho vẽ điểm, RMB xoay view, MMB/scroll zoom — OSNAP vẫn qua pointerWorld
   if (controls) {
     controls.enabled = true;
@@ -1767,7 +1788,9 @@ function updateObjectsList() {
   const listEl=document.getElementById('objects-list');
   listEl.innerHTML='';
   const roots=objects.filter(o=>!o.hiddenByGroup && !(o.parentGroup));
-  const render=(o,depth=0)=>{
+  const render=(o,depth=0,seen=new Set())=>{
+    if(!o||seen.has(o.id)||depth>20)return;
+    seen.add(o.id);
     const div=document.createElement('div');
     div.dataset.objectId=o.id;
     div.style.marginLeft=`${depth*14}px`;
@@ -1789,7 +1812,7 @@ function updateObjectsList() {
     };
     listEl.appendChild(div);
     if(isGroup){
-      (o.members||[]).forEach(child=>render(child,depth+1));
+      (o.members||[]).forEach(child=>render(child,depth+1,seen));
     }
   };
   roots.forEach(o=>render(o));
@@ -1917,39 +1940,77 @@ function setupEvents() {
   let dragObject=false, dragStartWorld=new THREE.Vector3(), dragStartPos=new THREE.Vector3();
   const xyPlane=new THREE.Plane(new THREE.Vector3(0,0,1),0);
   function pointerWorld(e, plane=xyPlane){
-    const r=canvas.getBoundingClientRect();mouse.x=((e.clientX-r.left)/r.width)*2-1;mouse.y=-((e.clientY-r.top)/r.height)*2+1;
+    const r=canvas.getBoundingClientRect();
+    mouse.x=((e.clientX-r.left)/r.width)*2-1;
+    mouse.y=-((e.clientY-r.top)/r.height)*2+1;
     raycaster.setFromCamera(mouse,camera);
-    // OSNAP: prioritize nearby endpoints/midpoints/centers in screen space, then exact face hit.
     const snapEnabled = ['snap-endpoint','snap-midpoint','snap-center','snap-face'].some(id=>document.getElementById(id)?.checked);
-    const draw3d = drawMode==='line' || drawMode==='polyline';
-    let best=null, bestPx=13, bestKind='';
+    let best=null, bestPx=22, bestKind='';
     if(snapEnabled){
       const candidates=[];
       objects.filter(o=>o.mesh?.visible&&!o.hiddenByGroup).forEach(o=>{
-        const g=o.mesh.geometry; if(!g)return;
-        const attr=g.attributes?.position;
-        if(attr && document.getElementById('snap-endpoint')?.checked){
-          const step=Math.max(1,Math.floor(attr.count>500?attr.count/100:1));
-          for(let i=0;i<attr.count;i+=step){const v=new THREE.Vector3().fromBufferAttribute(attr,i);o.mesh.localToWorld(v);candidates.push({p:v,kind:'Endpoint'});}
+        // Prefer shapePoints (2D CAD curves)
+        let worldPts=[];
+        if(Array.isArray(o.shapePoints)&&o.shapePoints.length>=1){
+          o.mesh.updateMatrixWorld(true);
+          worldPts=o.shapePoints.map(p=>{
+            const v=new THREE.Vector3(Number(p[0])||0,Number(p[1])||0,Number(p[2])||0);
+            return v.applyMatrix4(o.mesh.matrixWorld);
+          });
+        } else {
+          const g=o.mesh.geometry; const attr=g&&g.attributes&&g.attributes.position;
+          if(attr){
+            const step=Math.max(1, Math.floor(attr.count>200?attr.count/80:1));
+            for(let i=0;i<attr.count;i+=step){
+              const v=new THREE.Vector3().fromBufferAttribute(attr,i);
+              o.mesh.localToWorld(v); worldPts.push(v);
+            }
+          }
         }
-        if(attr && document.getElementById('snap-midpoint')?.checked && (o.type==='line2d'||o.type==='polyline')){
-          const count=attr.count;
-          for(let i=0;i<count-1;i++){const a=new THREE.Vector3().fromBufferAttribute(attr,i),b=new THREE.Vector3().fromBufferAttribute(attr,i+1);o.mesh.localToWorld(a);o.mesh.localToWorld(b);candidates.push({p:a.add(b).multiplyScalar(.5),kind:'Midpoint'});}
+        if(document.getElementById('snap-endpoint')?.checked){
+          worldPts.forEach(v=>candidates.push({p:v.clone(),kind:'Endpoint'}));
+          if(o.closed&&worldPts.length) candidates.push({p:worldPts[0].clone(),kind:'Endpoint'});
         }
-        if(document.getElementById('snap-center')?.checked){const box=new THREE.Box3().setFromObject(o.mesh);if(!box.isEmpty())candidates.push({p:box.getCenter(new THREE.Vector3()),kind:'Center'});}
+        if(document.getElementById('snap-midpoint')?.checked && worldPts.length>=2){
+          for(let i=0;i<worldPts.length-1;i++){
+            candidates.push({p:worldPts[i].clone().add(worldPts[i+1]).multiplyScalar(.5),kind:'Midpoint'});
+          }
+        }
+        if(document.getElementById('snap-center')?.checked){
+          const box=new THREE.Box3().setFromObject(o.mesh);
+          if(!box.isEmpty()) candidates.push({p:box.getCenter(new THREE.Vector3()),kind:'Center'});
+        }
       });
-      for(const c of candidates){const v=c.p.clone().project(camera);const sx=r.left+(v.x+1)*r.width/2,sy=r.top+(1-v.y)*r.height/2;const d=Math.hypot(sx-e.clientX,sy-e.clientY);if(d<bestPx){bestPx=d;best=c.p.clone();bestKind=c.kind;}}
+      for(const c of candidates){
+        const v=c.p.clone().project(camera);
+        if(v.z<-1||v.z>1) continue;
+        const sx=r.left+(v.x+1)*r.width/2, sy=r.top+(1-v.y)*r.height/2;
+        const d=Math.hypot(sx-e.clientX,sy-e.clientY);
+        if(d<bestPx){bestPx=d;best=c.p.clone();bestKind=c.kind;}
+      }
     }
     const hits=raycaster.intersectObjects(objects.filter(o=>o.mesh?.visible&&!o.hiddenByGroup).map(o=>o.mesh),true);
-    if(!best && hits.length && document.getElementById('snap-face')?.checked){best=hits[0].point.clone();bestKind='Face';}
+    if(!best && hits.length && document.getElementById('snap-face')?.checked){
+      best=hits[0].point.clone(); bestKind='Face';
+    }
+    const marker=document.getElementById('snap-marker');
     if(best){
-      lastSnapKind=bestKind;const marker=document.getElementById('snap-marker');if(marker){const v=best.clone().project(camera);marker.style.left=((v.x+1)*r.width/2)+'px';marker.style.top=((1-v.y)*r.height/2)+'px';marker.style.display='block';marker.title=bestKind;}
-      const st=document.getElementById('snap-status');if(st)st.textContent=bestKind.toUpperCase();
+      lastSnapKind=bestKind;
+      if(marker){
+        const v=best.clone().project(camera);
+        marker.style.left=((v.x+1)*r.width/2)+'px';
+        marker.style.top=((1-v.y)*r.height/2)+'px';
+        marker.style.display='block';
+        marker.dataset.label=bestKind;
+        marker.title=bestKind;
+      }
+      const st=document.getElementById('snap-status'); if(st) st.textContent=bestKind.toUpperCase();
       return best;
     }
-    const marker=document.getElementById('snap-marker');if(marker)marker.style.display='none';
-    const st=document.getElementById('snap-status');if(st)st.textContent='ON';
-    const out=new THREE.Vector3();return raycaster.ray.intersectPlane(plane,out)?out:null;
+    if(marker){ marker.style.display='none'; marker.dataset.label=''; }
+    const st=document.getElementById('snap-status'); if(st) st.textContent='ON';
+    const out=new THREE.Vector3();
+    return raycaster.ray.intersectPlane(plane,out)?out:null;
   }
   canvas.addEventListener('pointerdown',e=>{
     if(e.button!==0 && e.button!==2)return;
@@ -1980,6 +2041,76 @@ function setupEvents() {
         drawPoints.push(p);redrawPreview();
       }
       return;
+    }
+    // --- Pending CAD commands: chọn lệnh trước, rồi chọn đối tượng ---
+    if(pendingCmd && e.button===0){
+      if(pendingCmd.type==='join'){
+        if(hitObj && vcadIsCurve2d(hitObj)){
+          if(!pendingCmd.picks.find(x=>x.id===hitObj.id)) pendingCmd.picks.push(hitObj);
+          setSelectionMany(pendingCmd.picks, hitObj);
+          setStatus('JOIN — đã chọn '+pendingCmd.picks.length+' đường. Enter nối · Esc hủy.');
+        }
+        return;
+      }
+      if(pendingCmd.type==='mirror'){
+        if(pendingCmd.step===1 && hitObj){
+          pendingCmd.target=hitObj; pendingCmd.step=2;
+          setSelectionMany([hitObj], hitObj);
+          commandModal('MIRROR','Nhập mặt phẳng đối xứng: X,0 / Y,0 / Z,0','X,0',val=>{
+            if(val===null||val===true){pendingCmd=null;return;}
+            finishPendingMirror(val);
+          });
+        }
+        return;
+      }
+      if(pendingCmd.type==='extrude'){
+        if(pendingCmd.step===1 && hitObj){
+          pendingCmd.target=hitObj; pendingCmd.step=2;
+          setSelectionMany([hitObj], hitObj);
+          const h = pendingCmd.preHeight != null ? pendingCmd.preHeight : (Number(document.getElementById('draw-height')?.value) || 2);
+          const ax = pendingCmd.preAxis || document.getElementById('extrude-axis')?.value || 'z';
+          commandModal('EXTRUDE','Chiều cao đùn và trục (vd: 2 Z hoặc 1.5 X). Đường hở → tấm, kín → khối.', h+' '+ax, val=>{
+            if(val===null||val===true){pendingCmd=null;return;}
+            const parts=String(val).trim().split(/[\s,;]+/).filter(Boolean);
+            const hh=Number(parts[0]); const axis=(parts[1]||ax).toLowerCase();
+            if(!Number.isFinite(hh)||hh===0){showModal('EXTRUDE','Chiều cao không hợp lệ');return;}
+            runExtrudeOnTarget(pendingCmd.target, hh, axis);
+            pendingCmd=null;
+          });
+        }
+        return;
+      }
+      if(pendingCmd.type==='offset'){
+        if(pendingCmd.step===1 && hitObj && vcadIsCurve2d(hitObj)){
+          pendingCmd.target=hitObj; pendingCmd.step=2;
+          setSelectionMany([hitObj], hitObj);
+          selectObject(hitObj);
+          commandModal('OFFSET','Khoảng cách offset (dương=ngoài, âm=trong)','0.5',val=>{
+            if(val===null||val===true){pendingCmd=null;return;}
+            const d=Number(String(val).split(/[\s,;]+/)[0]);
+            if(!Number.isFinite(d)||d===0){showModal('OFFSET','Khoảng cách không hợp lệ');return;}
+            offsetSelected(d);
+            pendingCmd=null;
+          });
+        }
+        return;
+      }
+      if(pendingCmd.type==='fillet'){
+        if(pendingCmd.step===1 && hitObj && vcadIsCurve2d(hitObj)){
+          pendingCmd.target=hitObj; pendingCmd.step=2;
+          setSelectionMany([hitObj], hitObj);
+          selectObject(hitObj);
+          const r0 = pendingCmd.radius != null ? pendingCmd.radius : (Number(document.getElementById('fillet-radius')?.value) || 0.5);
+          commandModal('FILLET','Bán kính fillet (m)', String(r0), val=>{
+            if(val===null||val===true){pendingCmd=null;return;}
+            const r=Number(String(val).split(/[\s,;]+/)[0]);
+            if(!Number.isFinite(r)||r<=0){showModal('FILLET','Bán kính > 0');return;}
+            filletSelected(r);
+            pendingCmd=null;
+          });
+        }
+        return;
+      }
     }
     // --- PointsOn: kéo đỉnh / double-click thêm điểm ---
     if(polyEditMode && e.button===0){
@@ -2182,8 +2313,10 @@ function setupEvents() {
     const inField = e.target && e.target.matches && e.target.matches('input,textarea,[contenteditable="true"]');
     if(e.key==='Escape'&&drawMode){cancelDraw();setStatus('Đã hủy lệnh vẽ.');return;}
     if(e.key==='Escape'&&editCurveMode){cancelEditCurve();return;}
+    if(e.key==='Escape'&&pendingCmd){cancelPendingCmd();return;}
     if(e.key==='Escape'&&polyEditMode){endPolyEditMode();return;}
     if(e.key==='Enter'&&editCurveMode==='trim'&&trimCutters.length){window.__vcadTrimPhase=2;setStatus('TRIM — Bước 2: click phần đường cần cắt bỏ ('+trimCutters.length+' cutting edge). Esc thoát.');return;}
+    if(e.key==='Enter'&&pendingCmd&&pendingCmd.type==='join'){e.preventDefault();finishPendingJoin();return;}
     if((e.key==='c'||e.key==='C')&&(drawMode==='polyline'||drawMode==='spline')&&drawPoints.length>=3&&!inField){e.preventDefault();window.__vcadClosePoly=true;finishDraw();setStatus('Đã đóng Polyline (Closed). Có thể Extrude.');return;}
     if(e.key==='Enter'&&(drawMode==='polyline'||drawMode==='spline')&&(!inField||!(e.target.value||'').trim())){e.preventDefault();finishDraw();return;}
     // Delete / Backspace xóa đối tượng (hoặc đỉnh đang chọn trong PointsOn)
@@ -2198,13 +2331,16 @@ function setupEvents() {
       return;
     }
     // Phím cách: lặp lệnh cuối (kiểu Rhino/CAD) — không khi đang gõ input
-    if(e.code==='Space'&&!inField){
+    if((e.code==='Space'||e.key===' ')&&!inField){
       e.preventDefault();
+      e.stopPropagation();
       if((drawMode==='polyline'||drawMode==='spline')&&drawPoints.length>=2){finishDraw();return;}
-      if(lastCommandRaw){
-        setStatus('Lặp lệnh: '+lastCommandRaw);
-        executeCommand(lastCommandRaw);
-      } else setStatus('Chưa có lệnh trước để lặp (Space).');
+      if(drawMode){return;}
+      const rep = lastCommandRaw || lastCommand;
+      if(rep){
+        setStatus('Space → lặp: '+rep);
+        executeCommand(rep);
+      } else setStatus('Chưa có lệnh trước. Gõ hoặc bấm công cụ trước, rồi Space để lặp.');
       return;
     }
   });
@@ -2790,6 +2926,144 @@ function joinSelectedCurves() {
   setStatus('JOIN: đã nối thành ' + created.length + ' đường (từ ' + removeIds.size + ' đối tượng).');
 }
 
+
+function cancelPendingCmd() {
+  pendingCmd = null;
+  setStatus('Đã hủy lệnh.');
+}
+function startJoinCmd() {
+  lastCommandRaw = 'join'; lastCommand = 'join';
+  pendingCmd = { type: 'join', picks: [] };
+  setStatus('JOIN — Chọn đường cần nối (click từng đường), Enter để nối. Esc hủy.');
+}
+function startMirrorCmd() {
+  lastCommandRaw = 'mirror'; lastCommand = 'mirror';
+  pendingCmd = { type: 'mirror', step: 1, target: null };
+  setStatus('MIRROR — Chọn đối tượng cần đối xứng.');
+}
+function startExtrudeCmd() {
+  lastCommandRaw = 'extrude'; lastCommand = 'extrude';
+  pendingCmd = { type: 'extrude', step: 1, target: null, basePt: null };
+  setStatus('EXTRUDE — Chọn đường/mặt 2D cần đùn.');
+}
+function startOffsetCmd() {
+  lastCommandRaw = 'offset'; lastCommand = 'offset';
+  pendingCmd = { type: 'offset', step: 1, target: null };
+  setStatus('OFFSET — Chọn đường kín, rồi nhập khoảng cách.');
+}
+function startFilletCmd() {
+  lastCommandRaw = 'fillet'; lastCommand = 'fillet';
+  pendingCmd = { type: 'fillet', step: 1, target: null };
+  setStatus('FILLET — Chọn polyline/rectangle cần bo góc.');
+}
+function finishPendingJoin() {
+  if (!pendingCmd || pendingCmd.type !== 'join') return;
+  if (pendingCmd.picks.length >= 2) {
+    selectedObjects = [...pendingCmd.picks];
+    selectedObject = pendingCmd.picks[0];
+    joinSelectedCurves();
+  } else {
+    setStatus('JOIN: cần chọn ít nhất 2 đường.');
+    return;
+  }
+  pendingCmd = null;
+}
+function finishPendingMirror(axisStr) {
+  if (!pendingCmd || pendingCmd.type !== 'mirror' || !pendingCmd.target) return;
+  const o = pendingCmd.target;
+  const parts = String(axisStr || 'X,0').trim().toUpperCase().split(/[\s,;]+/).filter(Boolean);
+  const axis = parts[0] || 'X';
+  const plane = parts.length > 1 ? Number(parts[1]) : 0;
+  if (!['X','Y','Z'].includes(axis) || !Number.isFinite(plane)) {
+    showModal('MIRROR', 'Ví dụ: X,0 hoặc Y,0 hoặc Z,0');
+    return;
+  }
+  // Mirror geometry via shapePoints if curve, else position
+  if (Array.isArray(o.shapePoints) && o.shapePoints.length >= 2) {
+    o.mesh.updateMatrixWorld(true);
+    const pts = o.shapePoints.map(p => {
+      const v = new THREE.Vector3(Number(p[0])||0, Number(p[1])||0, Number(p[2])||0);
+      v.applyMatrix4(o.mesh.matrixWorld);
+      if (axis === 'X') v.x = 2*plane - v.x;
+      else if (axis === 'Y') v.y = 2*plane - v.y;
+      else v.z = 2*plane - v.z;
+      return v;
+    });
+    const geom = new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p.x, p.y, p.z + 0.01)));
+    const mesh = o.closed
+      ? new THREE.LineLoop(geom, new THREE.LineBasicMaterial({ color: o.color || '#5c7cfa' }))
+      : new THREE.Line(geom, new THREE.LineBasicMaterial({ color: o.color || '#5c7cfa' }));
+    const obj = {
+      id: objectIdCounter++, name: (o.name||'Obj') + '_Mirror', type: o.type,
+      mesh, layerId: o.layerId || currentLayerId, color: o.color || '#5c7cfa',
+      shapePoints: pts.map(p => [p.x, p.y, p.z]), closed: !!o.closed
+    };
+    mesh.userData = { objData: obj, shapePoints: obj.shapePoints, closed: obj.closed };
+    scene.add(mesh); objects.push(obj); selectObject(obj); updateObjectsList();
+  } else {
+    const p = o.mesh.position.clone();
+    if (axis === 'X') p.x = 2*plane - p.x;
+    else if (axis === 'Y') p.y = 2*plane - p.y;
+    else p.z = 2*plane - p.z;
+    const rot = [o.mesh.rotation.x, o.mesh.rotation.y, o.mesh.rotation.z];
+    if (axis === 'X') { rot[1] = -rot[1]; rot[2] = -rot[2]; }
+    else if (axis === 'Y') { rot[0] = -rot[0]; rot[2] = -rot[2]; }
+    else { rot[0] = -rot[0]; rot[1] = -rot[1]; }
+    if (typeof duplicateObjectFrom === 'function') duplicateObjectFrom(o, o.name + '_Mirror', p, rot);
+  }
+  setStatus('MIRROR: qua mặt ' + axis + '=' + plane);
+  pendingCmd = null;
+}
+function runExtrudeOnTarget(target, height, axis) {
+  selectedObject = target;
+  // Open curve → thin "sheet" (extrude with very small width alternative: create surface as extruded ribbon)
+  const closed = !!(target.closed || (target.shapePoints && target.shapePoints.length > 2 &&
+    Math.hypot(
+      (target.shapePoints[0][0]-target.shapePoints[target.shapePoints.length-1][0]),
+      (target.shapePoints[0][1]-target.shapePoints[target.shapePoints.length-1][1])
+    ) < 1e-4));
+  if (!closed && target.shapePoints && target.shapePoints.length >= 2) {
+    // Ribbon / surface from open curve
+    height = Number(height) || 1;
+    axis = (axis || 'z').toLowerCase();
+    target.mesh.updateMatrixWorld(true);
+    const pts = target.shapePoints.map(p => {
+      const v = new THREE.Vector3(Number(p[0])||0, Number(p[1])||0, Number(p[2])||0);
+      return v.applyMatrix4(target.mesh.matrixWorld);
+    });
+    const off = new THREE.Vector3(
+      axis === 'x' ? height : 0,
+      axis === 'y' ? height : 0,
+      axis === 'z' ? height : 0
+    );
+    const verts = [];
+    const indices = [];
+    pts.forEach((p, i) => {
+      verts.push(p.x, p.y, p.z);
+      verts.push(p.x + off.x, p.y + off.y, p.z + off.z);
+      if (i < pts.length - 1) {
+        const a = i * 2, b = a + 1, c = a + 2, d = a + 3;
+        indices.push(a, c, b, b, c, d);
+      }
+    });
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+      color: target.color || '#5c7cfa', side: THREE.DoubleSide, roughness: 0.4, metalness: 0.05
+    }));
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    const obj = { id: objectIdCounter++, name: (target.name||'Curve') + '_Sheet', type: 'sheet', mesh, layerId: currentLayerId, color: target.color || '#5c7cfa' };
+    mesh.userData = { objData: obj };
+    scene.add(mesh); objects.push(obj); selectObject(obj); updateObjectsList();
+    setStatus('EXTRUDE đường → tấm (sheet) theo ' + axis.toUpperCase() + ' = ' + height);
+    return;
+  }
+  // Closed curve or existing planar → solid
+  extrudeSelected(height, axis);
+}
+
 function deleteSelectedObjects() {
   const targets = (selectedObjects && selectedObjects.length) ? [...selectedObjects] : (selectedObject ? [selectedObject] : []);
   if (!targets.length) {
@@ -2864,11 +3138,15 @@ function executeCommand(rawCmd) {
     case 'extrude':{
       const h=validNums?nums[0]:Number(document.getElementById('draw-height').value);
       const axisArg=(validNums&&args[1])?String(args[1]).toLowerCase():(document.getElementById('extrude-axis')?.value||'z');
-      if(Number.isFinite(h)&&h!==0)extrudeSelected(h,axisArg);else ask('EXTRUDE','Nhập chiều cao đùn (m). Có thể thêm trục: EXTRUDE 2 Z','2',v=>extrudeSelected(v[0],axisArg));break;
+      if(selectedObject && Number.isFinite(h)&&h!==0){runExtrudeOnTarget(selectedObject,h,axisArg);break;}
+      startExtrudeCmd();
+      if(Number.isFinite(h)&&h!==0){pendingCmd.preHeight=h;pendingCmd.preAxis=axisArg;}
+      break;
     }
     case 'offset':{
-      if(validNums&&Number.isFinite(nums[0])&&nums[0]!==0){offsetSelected(nums[0]);break;}
-      ask('OFFSET','Nhập khoảng cách offset (m). Dương = ra ngoài, âm = vào trong.','0.5',v=>offsetSelected(v[0]));break;
+      if(selectedObject && validNums&&Number.isFinite(nums[0])&&nums[0]!==0){offsetSelected(nums[0]);break;}
+      if(selectedObject){ask('OFFSET','Nhập khoảng cách offset (m).','0.5',v=>offsetSelected(v[0]));break;}
+      startOffsetCmd(); break;
     }
     case 'copy':{
       if(validNums&&nums.length>=2){copySelected(nums[0],nums[1],nums[2]||0);break;}
@@ -2883,11 +3161,12 @@ function executeCommand(rawCmd) {
     case 'length': lengthSelected(); break;
     case 'fillet':{
       const r=validNums?nums[0]:Number(document.getElementById('fillet-radius')?.value);
-      if(Number.isFinite(r)&&r>0)filletSelected(r);
-      else ask('FILLET','Nhập bán kính fillet (m)','0.5',v=>filletSelected(v[0]));
+      if(selectedObject && Number.isFinite(r)&&r>0){filletSelected(r);break;}
+      startFilletCmd();
+      if(Number.isFinite(r)&&r>0) pendingCmd.radius=r;
       break;
     }
-    case 'join': joinSelectedCurves(); break;
+    case 'join': startJoinCmd(); break;
     case 'spline': setDrawMode('spline'); break;
     case 'dim': startDimensionCommand();break;
     case 'import': document.getElementById('file-append-input').click();break;
@@ -2906,17 +3185,14 @@ function executeCommand(rawCmd) {
     case 'wireframe':case 'shaded':case 'ghosted':setDisplayMode(cmd);break;
     case 'delete':deleteSelectedObjects();break;
     case 'mirror':{
-      if(!selectedObject){showModal('MIRROR','Chọn đối tượng cần đối xứng.');return;}
-      commandModal('MIRROR','Nhập mặt phẳng đối xứng: X hoặc X,tọa độ (ví dụ X,0); tương tự Y hoặc Z.','X,0',val=>{
-        if(val===null||val===true)return;
-        const parts=String(val).trim().toUpperCase().split(/[\s,;]+/).filter(Boolean),axis=parts[0],o=selectedObject,p=o.mesh.position.clone();
-        if(!['X','Y','Z'].includes(axis)){showModal('MIRROR','Nhập X, Y hoặc Z và tùy chọn tọa độ mặt phẳng. Ví dụ: X,0');return;}
-        const plane=parts.length>1?Number(parts[1]):0;if(!Number.isFinite(plane)){showModal('MIRROR','Tọa độ mặt phẳng phải là số.');return;}
-        if(axis==='X')p.x=2*plane-p.x;else if(axis==='Y')p.y=2*plane-p.y;else p.z=2*plane-p.z;
-        const rot=[o.mesh.rotation.x,o.mesh.rotation.y,o.mesh.rotation.z];if(axis==='X'){rot[1]=-rot[1];rot[2]=-rot[2];}else if(axis==='Y'){rot[0]=-rot[0];rot[2]=-rot[2];}else{rot[0]=-rot[0];rot[1]=-rot[1];}
-        duplicateObjectFrom(o,o.name+'_Mirror',p,rot);
-        setStatus(`MIRROR: đã tạo bản sao qua mặt phẳng ${axis}=${plane}. (Bản này phản chiếu đối tượng theo tọa độ/rotation; kiểm tra lại hình phức tạp trước khi dùng sản xuất.)`);
-      });break;
+      if(selectedObject){
+        commandModal('MIRROR','Nhập mặt phẳng: X,0 hoặc Y,0 hoặc Z,0','X,0',val=>{
+          if(val===null||val===true)return;
+          pendingCmd={type:'mirror',step:2,target:selectedObject};
+          finishPendingMirror(val);
+        });
+      } else startMirrorCmd();
+      break;
     }
     case 'array': {
       if(!selectedObject){showModal('ARRAY','Chọn đối tượng trước.');break;}
@@ -3115,7 +3391,7 @@ function initDockLayout(){
     const panel=panels[panelId]; if(!panel)return;
     const sel=document.querySelector('[data-dock-target="'+panelId+'"]');
     // Chuẩn hóa vị trí hợp lệ theo từng panel
-    if(panelId==='tools-panel' && where!=='bottom') where='left';
+    if(panelId==='tools-panel' && where!=='bottom' && where!=='top') where='left';
     if(panelId==='properties-panel' && where!=='bottom') where='right';
     if(sel && [...sel.options].some(o=>o.value===where)) sel.value=where;
     panel.classList.remove('vcad-floating','vcad-drop-target','vcad-panel-hidden');
@@ -3133,15 +3409,18 @@ function initDockLayout(){
   const apply=()=>{
     const a=document.querySelector('[data-dock-target="tools-panel"]')?.value||'left';
     const b=document.querySelector('[data-dock-target="properties-panel"]')?.value||'right';
-    body.classList.remove('dock-tools-bottom','dock-props-bottom','dock-both-bottom');
-    tools.classList.toggle('docked-bottom',a==='bottom');props.classList.toggle('docked-bottom',b==='bottom');
-    if(a==='bottom'&&b==='bottom')body.classList.add('dock-both-bottom');
+    body.classList.remove('dock-tools-bottom','dock-props-bottom','dock-both-bottom','dock-tools-top');
+    tools.classList.toggle('docked-bottom',a==='bottom');
+    tools.classList.toggle('docked-top',a==='top');
+    props.classList.toggle('docked-bottom',b==='bottom');
+    if(a==='top') body.classList.add('dock-tools-top');
+    else if(a==='bottom'&&b==='bottom')body.classList.add('dock-both-bottom');
     else if(a==='bottom')body.classList.add('dock-tools-bottom');
     else if(b==='bottom')body.classList.add('dock-props-bottom');
     try{localStorage.setItem('vcad-dock-layout',JSON.stringify({tools:a,properties:b}));}catch(_){}
     setTimeout(()=>{if(camera&&renderer)onWindowResize();},100);
   };
-  try{const saved=JSON.parse(localStorage.getItem('vcad-dock-layout')||'null');if(saved){const t=document.querySelector('[data-dock-target="tools-panel"]'),p=document.querySelector('[data-dock-target="properties-panel"]');if(t&&['left','bottom'].includes(saved.tools))t.value=saved.tools;if(p&&['right','bottom'].includes(saved.properties))p.value=saved.properties;}}catch(_){}
+  try{const saved=JSON.parse(localStorage.getItem('vcad-dock-layout')||'null');if(saved){const t=document.querySelector('[data-dock-target="tools-panel"]'),p=document.querySelector('[data-dock-target="properties-panel"]');if(t&&['left','bottom','top'].includes(saved.tools))t.value=saved.tools;if(p&&['right','bottom'].includes(saved.properties))p.value=saved.properties;}}catch(_){}
   selects.forEach(el=>el.addEventListener('change',apply));apply();
   const bodyEl=body;
   const addGrip=(panel,side)=>{const grip=document.createElement('div');grip.className='vcad-resize-grip';grip.style.cssText=`position:absolute;${side==='right'?'right:0;top:0;width:5px;height:100%;cursor:col-resize;':'left:0;top:0;width:5px;height:100%;cursor:col-resize;'}z-index:30;background:transparent`;panel.style.position='relative';panel.appendChild(grip);grip.addEventListener('pointerdown',e=>{if(panel.classList.contains('docked-bottom')||panel.classList.contains('vcad-floating'))return;e.preventDefault();grip.setPointerCapture(e.pointerId);const startX=e.clientX,computed=getComputedStyle(bodyEl),start=side==='right'?parseFloat(computed.getPropertyValue('--tools-width'))||230:parseFloat(computed.getPropertyValue('--props-width'))||260;const move=ev=>{const delta=ev.clientX-startX;const val=Math.max(side==='right'?190:210,Math.min(window.innerWidth*.42,start+(side==='right'?delta:-delta)));bodyEl.style.setProperty(side==='right'?'--tools-width':'--props-width',val+'px');onWindowResize();};const end=()=>{grip.removeEventListener('pointermove',move);grip.removeEventListener('pointerup',end);try{localStorage.setItem('vcad-panel-widths',JSON.stringify({tools:bodyEl.style.getPropertyValue('--tools-width'),props:bodyEl.style.getPropertyValue('--props-width')}));}catch(_){}};grip.addEventListener('pointermove',move);grip.addEventListener('pointerup',end);});};
