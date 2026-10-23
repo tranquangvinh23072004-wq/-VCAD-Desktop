@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VC@D 1.2.15</title>
+<title>VC@D 1.2.16</title>
 <!-- Tailwind CSS & FontAwesome -->
 <script src="./vendor/tailwindcss.js"></script>
 <link rel="stylesheet" href="./vendor/fontawesome/css/all.min.css">
@@ -142,6 +142,11 @@
   .scene-obj-row.selected { background:#b88700; color:#fff; }
   .scene-obj-row:not(.selected):hover { background:#20232a; }
   #scene-tree { flex:1; min-height:120px; overflow-y:auto; background:#181920; border:1px solid #383e4c; border-radius:6px; padding:4px; }
+
+
+  /* Technical / CAD-like font stacks */
+  .vcad-font-ISOCP { font-family: "Consolas", "Courier New", "Lucida Console", monospace; letter-spacing: 0.04em; }
+  .vcad-font-Romans { font-family: "Times New Roman", "Liberation Serif", serif; }
 
   #snap-status { color: var(--accent-2); font-size: 10px; font-weight: 700; letter-spacing: .04em; }
 
@@ -512,7 +517,7 @@
   <div class="flex items-center gap-3">
     <div class="font-bold text-sm tracking-wide flex items-center gap-2 select-none">
       <i class="fa-solid fa-cube"></i> VC@D
-      <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-500/30 text-cyan-300/90 bg-cyan-500/10">1.2.15</span>
+      <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-500/30 text-cyan-300/90 bg-cyan-500/10">1.2.16</span>
     </div>
     <div class="h-4 w-[1px] bg-[#383e4c]"></div>
     <div id="drawing-title-wrap" class="flex items-center gap-1.5 max-w-[150px] min-w-[90px] text-xs text-gray-300" title="Tên bản vẽ hiện tại">
@@ -580,6 +585,22 @@
         <button data-draw="rectangle" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-regular fa-square text-green-400"></i> Rectangle</button>
         <button data-draw="circle" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-regular fa-circle text-pink-400"></i> Circle</button>
         <button data-draw="arc" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-bezier-curve text-amber-300"></i> Arc (3pt)</button>
+        <button data-vcad-cmd="text" id="btn-text" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-font text-cyan-300"></i> Text</button>
+      </div>
+      <div class="mt-2 grid grid-cols-2 gap-1.5">
+        <label class="text-[10px] text-gray-400">Phông chữ
+          <select id="text-font" class="rhino-input w-full mt-1 text-[11px]">
+            <option value="ISOCP">ISOCP (kỹ thuật)</option>
+            <option value="Romans">Romans CAD</option>
+            <option value="Courier New">Courier (mono)</option>
+            <option value="Consolas">Consolas</option>
+            <option value="Arial">Arial</option>
+            <option value="Segoe UI">Segoe UI</option>
+          </select>
+        </label>
+        <label class="text-[10px] text-gray-400">Cao chữ (m)
+          <input id="text-height" type="number" value="0.35" min="0.01" step="0.05" class="rhino-input w-full mt-1">
+        </label>
       </div>
       <div class="mt-2 grid grid-cols-3 gap-1.5">
         <label class="text-[10px] text-gray-400">Dài <input id="dim-length" type="number" value="2" step="0.1" class="rhino-input w-full mt-1"></label>
@@ -853,6 +874,53 @@
 /* ==========================================================
    MESH STUDIO — RHINO 8 WEB EDITION ENGINE
    ========================================================== */
+
+/* ==========================================================
+   VCAD Command Library (kiểu Rhino plugin registry)
+   Thêm lệnh mới: VCAD.registerCommand({ id, aliases, run, button? })
+   Không cần sửa executeCommand / toolbar thủ công.
+   ========================================================== */
+const VCAD = window.VCAD = window.VCAD || {
+  commands: Object.create(null),
+  aliases: Object.create(null),
+  toolbarButtons: [],
+  registerCommand(def) {
+    if (!def || !def.id || typeof def.run !== 'function') {
+      console.warn('VCAD.registerCommand: thiếu id hoặc run', def);
+      return;
+    }
+    const id = String(def.id).toLowerCase();
+    this.commands[id] = def;
+    (def.aliases || []).forEach(a => { this.aliases[String(a).toLowerCase()] = id; });
+    if (def.button) this.toolbarButtons.push({ cmd: id, ...def.button });
+  },
+  resolve(name) {
+    const n = String(name || '').toLowerCase();
+    return this.commands[n] || this.commands[this.aliases[n]];
+  },
+  run(name, args, ctx) {
+    const def = this.resolve(name);
+    if (!def) return false;
+    def.run(args || [], ctx || {});
+    return true;
+  },
+  mountToolbarButtons(containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    this.toolbarButtons.forEach(b => {
+      if (el.querySelector('[data-vcad-cmd="' + b.cmd + '"]')) return;
+      const btn = document.createElement('button');
+      btn.className = 'rhino-btn p-1.5 rounded text-left flex items-center gap-1.5';
+      btn.dataset.vcadCmd = b.cmd;
+      btn.innerHTML = (b.icon ? '<i class="fa-solid ' + b.icon + ' ' + (b.color || 'text-cyan-300') + '"></i> ' : '') + (b.label || b.cmd);
+      btn.title = b.title || b.cmd;
+      btn.onclick = () => executeCommand(b.cmd);
+      el.appendChild(btn);
+    });
+  }
+};
+
+
 
 let scene, camera, renderer, controls;
 let objects = [], selectedObject = null;
@@ -2405,6 +2473,13 @@ function setupEvents() {
     // --- Pending CAD commands: chọn lệnh trước, rồi chọn đối tượng ---
     if(pendingCmd && e.button===0){
 
+      if(pendingCmd.type==='text'){
+        const world=pointerWorld(e);
+        if(!world) return;
+        createTechnicalText(pendingCmd.content, world, { font: pendingCmd.font, height: pendingCmd.height });
+        pendingCmd=null;
+        return;
+      }
       if(pendingCmd.type==='dim'){
         const world=pointerWorld(e);
         if(!world) return;
@@ -2851,6 +2926,7 @@ function setupEvents() {
   document.getElementById('btn-close-pl')?.addEventListener('click', () => executeCommand('close'));
   document.getElementById('btn-explode')?.addEventListener('click', () => executeCommand('explode'));
   document.getElementById('btn-length')?.addEventListener('click', () => executeCommand('length'));
+  document.getElementById('btn-text')?.addEventListener('click', () => executeCommand('text'));
   document.getElementById('btn-dim-linear')?.addEventListener('click', () => executeCommand('dim'));
   document.getElementById('btn-dim-aligned')?.addEventListener('click', () => executeCommand('dim3d'));
   document.getElementById('btn-delete-all')?.addEventListener('click', () => executeCommand('deleteall'));
@@ -3510,6 +3586,126 @@ function deleteSelectedObjects() {
   setStatus('Đã xóa ' + targets.length + ' đối tượng.');
 }
 
+
+/** Tạo text kỹ thuật trên mặt phẳng (canvas texture → mesh) */
+function createTechnicalText(content, position, opts) {
+  opts = opts || {};
+  const height = Math.max(0.05, Number(opts.height) || 0.35);
+  const fontKey = opts.font || 'ISOCP';
+  const color = opts.color || '#e9ecef';
+  const fontStack = {
+    ISOCP: '"Consolas","Courier New","Lucida Console",monospace',
+    Romans: '"Times New Roman","Liberation Serif",Times,serif',
+    'Courier New': '"Courier New",Courier,monospace',
+    Consolas: 'Consolas,"Courier New",monospace',
+    Arial: 'Arial,Helvetica,sans-serif',
+    'Segoe UI': '"Segoe UI",Tahoma,sans-serif'
+  }[fontKey] || fontStackSafe(fontKey);
+
+  function fontStackSafe(k) { return '"' + k + '", monospace'; }
+
+  const lines = String(content || '').split(/\r?\n/);
+  const pad = 24;
+  const fontPx = 64;
+  const lineGap = Math.round(fontPx * 1.25);
+  // measure
+  const cnv = document.createElement('canvas');
+  const ctx = cnv.getContext('2d');
+  ctx.font = 'bold ' + fontPx + 'px ' + fontStack;
+  let maxW = 0;
+  lines.forEach(function(ln) { maxW = Math.max(maxW, ctx.measureText(ln).width); });
+  cnv.width = Math.min(2048, Math.max(128, Math.ceil(maxW + pad * 2)));
+  cnv.height = Math.min(1024, Math.max(64, Math.ceil(lines.length * lineGap + pad * 2)));
+  const ctx2 = cnv.getContext('2d');
+  ctx2.clearRect(0, 0, cnv.width, cnv.height);
+  ctx2.font = 'bold ' + fontPx + 'px ' + fontStack;
+  ctx2.fillStyle = color;
+  ctx2.textBaseline = 'top';
+  ctx2.textAlign = 'left';
+  // subtle technical outline
+  ctx2.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx2.lineWidth = 3;
+  lines.forEach(function(ln, i) {
+    const x = pad, y = pad + i * lineGap;
+    ctx2.strokeText(ln, x, y);
+    ctx2.fillText(ln, x, y);
+  });
+
+  const tex = new THREE.CanvasTexture(cnv);
+  tex.needsUpdate = true;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+
+  const aspect = cnv.width / cnv.height;
+  const worldH = height * Math.max(1, lines.length);
+  const worldW = worldH * aspect;
+  const geo = new THREE.PlaneGeometry(worldW, worldH);
+  const mat = new THREE.MeshBasicMaterial({
+    map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  const p = position || new THREE.Vector3(0, 0, 0.02);
+  mesh.position.set(p.x + worldW / 2, p.y + worldH / 2, (p.z || 0) + 0.02);
+  mesh.renderOrder = 10;
+
+  const obj = {
+    id: objectIdCounter++,
+    name: 'Text_' + String(objectIdCounter).padStart(2, '0'),
+    type: 'text',
+    mesh: mesh,
+    layerId: currentLayerId,
+    color: color,
+    textContent: content,
+    textFont: fontKey,
+    textHeight: height,
+    shapePoints: [[p.x, p.y, p.z || 0]],
+    closed: false
+  };
+  mesh.userData = { objData: obj };
+  scene.add(mesh);
+  objects.push(obj);
+  selectObject(obj);
+  updateObjectsList();
+  setStatus('TEXT: "' + String(content).slice(0, 40) + '" · ' + fontKey + ' · H=' + height.toFixed(2) + ' m');
+  return obj;
+}
+
+function startTextCommand(presetArgs) {
+  lastCommandRaw = 'text';
+  lastCommand = 'text';
+  const fontEl = document.getElementById('text-font');
+  const hEl = document.getElementById('text-height');
+  const font = fontEl ? fontEl.value : 'ISOCP';
+  const height = hEl ? Number(hEl.value) || 0.35 : 0.35;
+  const initial = (presetArgs && presetArgs.length) ? presetArgs.join(' ') : '';
+
+  // Nếu đã có sẵn chuỗi sau lệnh: TEXT Hello → hỏi điểm chèn
+  if (initial.trim()) {
+    pendingCmd = { type: 'text', step: 1, content: initial.trim(), font: font, height: height };
+    setStatus('TEXT — Click điểm chèn trên bản vẽ (OSNAP/3D) · Esc hủy.');
+    return;
+  }
+
+  commandModal('TEXT', 'Nhập nội dung chữ kỹ thuật. Phông: ' + font + ' · Cao: ' + height + ' m', 'GHI CHÚ / NOTE', function(val) {
+    if (val === null || val === true) return;
+    const content = String(val).trim();
+    if (!content) { showModal('TEXT', 'Nội dung không được trống.'); return; }
+    pendingCmd = { type: 'text', step: 1, content: content, font: font, height: height };
+    setStatus('TEXT — Click điểm chèn · Esc hủy.');
+  });
+}
+
+// Đăng ký lệnh thư viện (plugin-style)
+if (window.VCAD && VCAD.registerCommand) {
+  VCAD.registerCommand({
+    id: 'text',
+    aliases: ['t', 'tx', 'note', 'label'],
+    button: { label: 'Text', icon: 'fa-font', color: 'text-cyan-300', title: 'Chữ kỹ thuật (TEXT)' },
+    run: function(args) { startTextCommand(args); }
+  });
+}
+
+
 function executeCommand(rawCmd) {
   if(!rawCmd)return;
   lastCommandRaw = String(rawCmd).trim();
@@ -3517,6 +3713,11 @@ function executeCommand(rawCmd) {
   const normalized=rawCmd.trim().toLowerCase();
   const parts=normalized.split(/[\s,;]+/).filter(Boolean);
   let cmd=parts.shift()||'',args=parts;
+  // Thư viện lệnh đăng ký (plugin) — ưu tiên trước switch cứng
+  if (window.VCAD && VCAD.resolve(cmd)) {
+    VCAD.run(cmd, args, { raw: rawCmd });
+    return;
+  }
   const aliases={planarsrf:'planarsrf',planesrf:'planarsrf',srf:'planarsrf',b:'box',rec:'rectangle',rect:'rectangle',l:'line',pl:'polyline',c:'circle',cr:'circle',cd:'circle',a:'arc',dim:'dim',d:'dim',dim3d:'dim3d',d3:'dim3d',dim3:'dim3d',mirron:'mirror',mi:'mirror',m:'move',ro:'rotate',sc:'scale',ex:'extrude',del:'delete',deleteall:'deleteall',delall:'deleteall',clear:'deleteall',u:'union',dif:'difference',inter:'intersection',imp:'import',o:'offset',off:'offset',cp:'copy',co:'copy',tr:'trim',ext:'extend',po:'pointson',pts:'pointson',cl:'close',exp:'explode',len:'length',f:'fillet',fil:'fillet',j:'join',spl:'spline',s:'spline'};
   let alias=cmd;
   if(cmd==='c'&&['r','d'].includes(args[0])){alias=args[0]==='d'?'cd':'cr';args=args.slice(1);cmd='circle';}
@@ -3642,7 +3843,7 @@ function executeCommand(rawCmd) {
         }
       });break;
     }
-    case 'help':showModal('Lệnh CAD','BOX L,W,H · REC L,W · LINE L · ARC (3 điểm) · DIM 10 · C R · PL · EXTRUDE H · MOVE dx dy dz · ROTATE 45 Z · SCALE 2 · ORTHO · IMPORT · DELETE. UNION gộp khối, DIFFERENCE trừ khối, INTERSECTION giữ phần giao nhau; phép Boolean hình học chưa được triển khai trong bản này.');break;
+    case 'help':showModal('Lệnh CAD','BOX · REC · LINE · PL · SPLINE · ARC · DIM · DIM3D · TEXT · EXTRUDE · FILLET · JOIN · TRIM · EXTEND · MOVE · ROTATE · SCALE · ORTHO · DELETE · DELETEALL. Lệnh plugin: gõ tên đã đăng ký trong VCAD.commands.');break;
     default:showModal('Không nhận diện lệnh',`Không tìm thấy "${rawCmd}". Thử BOX, REC, LINE, C, CR, CD, PL, EXTRUDE, MIRROR hoặc HELP.`);
   }
 }
