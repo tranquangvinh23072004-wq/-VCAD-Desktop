@@ -1,7 +1,7 @@
 {
   "name": "vcad-desktop",
-  "version": "1.2.13",
-  "description": "VC@D 1.2.13 — DIM 3D",
+  "version": "1.2.15",
+  "description": "VC@D 1.2.15 — unified Layers+Objects, top toolbar",
   "main": "main.js",
   "author": "VCAD",
   "license": "UNLICENSED",
