@@ -1,7 +1,7 @@
 {
   "name": "vcad-desktop",
-  "version": "1.2.10",
-  "description": "VC@D Desktop CAD v1.2.10 — stable startup, valid semver",
+  "version": "1.2.13.1",
+  "description": "VC@D 1.2.13.1 — DIM 3D",
   "main": "main.js",
   "author": "VCAD",
   "license": "UNLICENSED",
