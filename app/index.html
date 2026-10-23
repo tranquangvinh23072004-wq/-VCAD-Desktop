@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VC@D 1.2.13</title>
+<title>VC@D 1.2.15</title>
 <!-- Tailwind CSS & FontAwesome -->
 <script src="./vendor/tailwindcss.js"></script>
 <link rel="stylesheet" href="./vendor/fontawesome/css/all.min.css">
@@ -111,24 +111,37 @@
     border-radius: 4px; padding: 1px 5px; white-space: nowrap;
     pointer-events: none;
   }
-  /* Top toolbar dock */
+  /* Top toolbar dock — tối ưu kiểu CAD */
   #app-body.dock-tools-top {
     grid-template-rows: auto minmax(0,1fr);
-    grid-template-columns: minmax(0,1fr) minmax(210px,var(--props-width));
+    grid-template-columns: minmax(0,1fr) minmax(240px,var(--props-width));
     grid-template-areas: "tools tools" "stage props";
   }
   #app-body.dock-tools-top #tools-panel {
     max-width: none; width: auto; resize: none;
-    max-height: 160px; overflow: auto;
+    max-height: 118px; overflow-x: auto; overflow-y: hidden;
     border-right: none !important;
     border-bottom: 1px solid var(--border);
-    display: flex; flex-direction: row; flex-wrap: wrap; align-content: flex-start;
+    display: flex; flex-direction: row; flex-wrap: nowrap; align-items: stretch;
+    padding: 0 !important;
   }
   #app-body.dock-tools-top #tools-panel > div {
     border-bottom: none !important;
     border-right: 1px solid var(--border-soft);
-    min-width: 160px; flex: 1 1 180px;
+    min-width: max-content; flex: 0 0 auto;
+    padding: 6px 8px !important;
   }
+  #app-body.dock-tools-top #tools-panel h3 { margin-bottom: 4px !important; }
+  #app-body.dock-tools-top .grid { gap: 4px !important; }
+  #app-body.dock-tools-top .rhino-btn { padding: 4px 6px !important; font-size: 11px; }
+  /* Scene tree (layers + objects gộp) */
+  .scene-layer-row { display:flex; align-items:center; gap:6px; padding:5px 6px; border-radius:6px; cursor:pointer; }
+  .scene-layer-row.current { background:#2e3856; border:1px solid #5c7cfa; }
+  .scene-layer-row:not(.current):hover { background:#20232a; }
+  .scene-obj-row { display:flex; align-items:center; justify-content:space-between; padding:4px 6px 4px 22px; border-radius:5px; cursor:pointer; font-size:11px; }
+  .scene-obj-row.selected { background:#b88700; color:#fff; }
+  .scene-obj-row:not(.selected):hover { background:#20232a; }
+  #scene-tree { flex:1; min-height:120px; overflow-y:auto; background:#181920; border:1px solid #383e4c; border-radius:6px; padding:4px; }
 
   #snap-status { color: var(--accent-2); font-size: 10px; font-weight: 700; letter-spacing: .04em; }
 
@@ -499,7 +512,7 @@
   <div class="flex items-center gap-3">
     <div class="font-bold text-sm tracking-wide flex items-center gap-2 select-none">
       <i class="fa-solid fa-cube"></i> VC@D
-      <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-500/30 text-cyan-300/90 bg-cyan-500/10">1.2.13</span>
+      <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-500/30 text-cyan-300/90 bg-cyan-500/10">1.2.15</span>
     </div>
     <div class="h-4 w-[1px] bg-[#383e4c]"></div>
     <div id="drawing-title-wrap" class="flex items-center gap-1.5 max-w-[150px] min-w-[90px] text-xs text-gray-300" title="Tên bản vẽ hiện tại">
@@ -539,14 +552,14 @@
 </header>
 
 <!-- MAIN APP BODY -->
-<div id="app-body" class="flex-1 overflow-hidden">
+<div id="app-body" class="flex-1 overflow-hidden dock-tools-top">
   
   <!-- LEFT SIDEBAR: Tools & Creation -->
   <aside id="tools-panel" class="rhino-panel border-r border-[#323642] flex flex-col overflow-y-auto text-xs">
     
     <!-- Creation Panel -->
     <div class="p-3 border-b border-[#323642]">
-      <div class="flex items-center justify-between gap-1 mb-2"><h3 class="font-semibold text-gray-400 uppercase tracking-wider text-[10px]">Tạo Khối (Primitive 3D)</h3><select class="dock-select" data-dock-target="tools-panel" title="Vị trí bảng công cụ"><option value="left">Trái</option><option value="top">Trên</option><option value="bottom">Dưới</option></select></div>
+      <div class="flex items-center justify-between gap-1 mb-2"><h3 class="font-semibold text-gray-400 uppercase tracking-wider text-[10px]">Tạo Khối (Primitive 3D)</h3><select class="dock-select" data-dock-target="tools-panel" title="Vị trí bảng công cụ"><option value="top">Trên</option><option value="left">Trái</option><option value="bottom">Dưới</option></select></div>
       <div class="grid grid-cols-2 gap-1.5">
         <button data-create="box" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-cube text-indigo-400"></i> Box</button>
         <button data-create="sphere" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1.5"><i class="fa-solid fa-globe text-cyan-400"></i> Sphere</button>
@@ -645,29 +658,6 @@
         <button id="btn-bool-union" class="rhino-btn p-1 rounded text-center" title="Boolean Union">Union</button>
         <button id="btn-bool-diff" class="rhino-btn p-1 rounded text-center" title="Boolean Difference">Diff</button>
         <button id="btn-bool-inter" class="rhino-btn p-1 rounded text-center" title="Boolean Intersection">Inter</button>
-      </div>
-    </div>
-
-    <!-- Layers Manager -->
-    <div class="p-3 flex-1 flex flex-col min-h-[150px]">
-      <div class="flex items-center justify-between mb-2">
-        <h3 class="font-semibold text-gray-400 uppercase tracking-wider text-[10px]">Layers</h3>
-        <button id="btn-add-layer" class="rhino-btn px-1.5 py-0.5 rounded text-[10px]"><i class="fa-solid fa-plus"></i> Thêm</button>
-      </div>
-      <div id="layer-list" class="flex-1 bg-[#181920] border border-[#383e4c] rounded p-1 space-y-1 overflow-y-auto">
-        <!-- Rendered dynamically -->
-      </div>
-      <div id="layer-create-panel" class="hidden mt-2 p-2 rounded border border-[#414858] bg-[#20232b] space-y-2">
-        <label class="block text-[10px] text-gray-400">Tên layer mới</label>
-        <input id="layer-new-name" type="text" placeholder="Nhập tên layer" class="rhino-input w-full text-xs" maxlength="60">
-        <div class="flex items-center justify-between gap-2">
-          <label for="layer-new-color" class="text-[10px] text-gray-400">Màu layer</label>
-          <input id="layer-new-color" type="color" value="#38d9a9" class="w-8 h-6 bg-transparent cursor-pointer">
-        </div>
-        <div class="grid grid-cols-2 gap-1">
-          <button id="layer-create-confirm" class="rhino-btn p-1 rounded text-xs">Tạo layer</button>
-          <button id="layer-create-cancel" class="rhino-btn p-1 rounded text-xs">Hủy</button>
-        </div>
       </div>
     </div>
 
@@ -773,14 +763,30 @@
       </div>
     </div>
 
-    <!-- Objects Outliner -->
-    <div class="p-3 flex-1 flex flex-col min-h-[160px]">
-      <div class="flex items-center justify-between mb-2">
-        <h3 class="font-semibold text-gray-400 uppercase tracking-wider text-[10px]">Danh Sách Đối Tượng</h3>
-        <button id="btn-delete" class="rhino-btn px-2 py-0.5 rounded text-red-400 hover:text-red-300 text-[10px]"><i class="fa-solid fa-trash"></i> Xóa</button>
+    <!-- Layers + Objects gộp (Scene tree) -->
+    <div class="p-3 flex-1 flex flex-col min-h-[200px] border-t border-[#323642]">
+      <div class="flex items-center justify-between mb-2 gap-1">
+        <h3 class="font-semibold text-gray-400 uppercase tracking-wider text-[10px]">Layers &amp; Đối tượng</h3>
+        <div class="flex items-center gap-1">
+          <button id="btn-add-layer" class="rhino-btn px-1.5 py-0.5 rounded text-[10px]" title="Thêm layer"><i class="fa-solid fa-plus"></i></button>
+          <button id="btn-delete" class="rhino-btn px-1.5 py-0.5 rounded text-red-400 hover:text-red-300 text-[10px]" title="Xóa đối tượng đã chọn"><i class="fa-solid fa-trash"></i></button>
+        </div>
       </div>
-      <div id="objects-list" class="flex-1 bg-[#181920] border border-[#383e4c] rounded p-1 space-y-1 overflow-y-auto">
-        <!-- Rendered dynamically -->
+      <div id="scene-tree"></div>
+      <!-- Giữ id cũ để JS cũ không lỗi -->
+      <div id="objects-list" class="hidden"></div>
+      <div id="layer-list" class="hidden"></div>
+      <div id="layer-create-panel" class="hidden mt-2 p-2 rounded border border-[#414858] bg-[#20232b] space-y-2">
+        <label class="block text-[10px] text-gray-400">Tên layer mới</label>
+        <input id="layer-new-name" type="text" placeholder="Nhập tên layer" class="rhino-input w-full text-xs" maxlength="60">
+        <div class="flex items-center justify-between gap-2">
+          <label for="layer-new-color" class="text-[10px] text-gray-400">Màu</label>
+          <input id="layer-new-color" type="color" value="#38d9a9" class="w-8 h-6 bg-transparent cursor-pointer">
+        </div>
+        <div class="grid grid-cols-2 gap-1">
+          <button id="layer-create-confirm" class="rhino-btn p-1 rounded text-xs">Tạo</button>
+          <button id="layer-create-cancel" class="rhino-btn p-1 rounded text-xs">Hủy</button>
+        </div>
       </div>
     </div>
 
@@ -1213,12 +1219,12 @@ function setDrawMode(mode) {
     } catch (_) {}
   }
   const tips = {
-    line: 'LINE — LMB điểm · RMB xoay view · Shift Ortho · Esc hủy.',
-    polyline: 'POLYLINE — LMB điểm · RMB xoay · Enter xong · C đóng · Esc hủy. OSNAP vẫn hoạt động.',
-    rectangle: 'RECTANGLE — 2 góc · RMB xoay view · Esc hủy.',
-    circle: 'CIRCLE — Tâm → bán kính · RMB xoay · Esc hủy.',
-    arc: 'ARC — 3 điểm · RMB xoay · Esc hủy.',
-    spline: 'SPLINE — Nhấp điểm kiểm soát · Enter xong · C đóng · RMB xoay · Esc hủy.'
+    line: 'LINE — Click điểm (OSNAP/3D) · Enter/Space kết thúc · Shift Ortho · Esc hủy.',
+    polyline: 'POLYLINE — Click điểm · Enter xong · C đóng · OSNAP 3D · Esc hủy.',
+    rectangle: 'RECTANGLE — 2 góc trên CPlane · Esc hủy.',
+    circle: 'CIRCLE — Tâm → bán kính · Esc hủy.',
+    arc: 'ARC — 3 điểm · Esc hủy.',
+    spline: 'SPLINE — Điểm kiểm soát (mượt centripetal) · Enter xong · C đóng · Esc hủy.'
   };
   setStatus(tips[mode] || (mode.toUpperCase() + ' — nhấp điểm. Esc hủy.'));
 }
@@ -1227,10 +1233,10 @@ function redrawPreview(cursorPoint=null) {
   const pts=drawPoints.map(p=>p.clone()); if(cursorPoint) pts.push(cursorPoint.clone());
   if(pts.length<2) return;
   let drawPts = pts;
-  if (drawMode === 'spline' && pts.length >= 3) {
+  if (drawMode === 'spline' && pts.length >= 2) {
     try {
-      const curve = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.5);
-      drawPts = curve.getPoints(Math.min(256, pts.length * 12));
+      const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
+      drawPts = curve.getPoints(Math.min(512, Math.max(32, pts.length * 24)));
     } catch (_) { drawPts = pts; }
   }
   const geom=new THREE.BufferGeometry().setFromPoints(drawPts);
@@ -1272,16 +1278,25 @@ function finishDraw(keepMode) {
       }
     }
     window.__vcadClosePoly = false;
-    controlPoints = pts.map(p => [p.x, p.y, p.z]);
-    const curve = new THREE.CatmullRomCurve3(pts.map(p => p.clone()), closedSp, 'catmullrom', 0.5);
-    const segs = Math.min(512, Math.max(32, pts.length * 16));
+    // Loại điểm trùng liên tiếp
+    const cleanPts = [];
+    pts.forEach(p => {
+      if (!cleanPts.length || cleanPts[cleanPts.length-1].distanceTo(p) > 1e-6) cleanPts.push(p.clone());
+    });
+    if (cleanPts.length < 2) { setStatus('SPLINE: cần ít nhất 2 điểm khác nhau.'); return; }
+    controlPoints = cleanPts.map(p => [p.x, p.y, p.z]);
+    // centripetal = mượt hơn kiểu CAD/Rhino, ít loop tự cắt
+    const curveType = 'centripetal';
+    const tension = 0.5;
+    const curve = new THREE.CatmullRomCurve3(cleanPts, closedSp, curveType, tension);
+    const segs = Math.min(1024, Math.max(64, cleanPts.length * 24));
     const sampled = curve.getPoints(segs);
     shapePoints = sampled.map(p => [p.x, p.y, p.z]);
-    const linePts = sampled.map(p => new THREE.Vector3(p.x, p.y, p.z + 0.01));
+    const linePts = sampled.map(p => new THREE.Vector3(p.x, p.y, p.z));
     const geom = new THREE.BufferGeometry().setFromPoints(linePts);
     mesh = closedSp
-      ? new THREE.LineLoop(geom, new THREE.LineBasicMaterial({ color: '#b197fc' }))
-      : new THREE.Line(geom, new THREE.LineBasicMaterial({ color: '#b197fc' }));
+      ? new THREE.LineLoop(geom, new THREE.LineBasicMaterial({ color: '#b197fc', linewidth: 2 }))
+      : new THREE.Line(geom, new THREE.LineBasicMaterial({ color: '#b197fc', linewidth: 2 }));
     closed = closedSp;
   } else if(mode==='rectangle') {
     if(pts.length<2){setStatus('Rectangle cần 2 góc.');return;}
@@ -1419,9 +1434,19 @@ function extrudeOneObject(src, height, axis) {
     return false;
   }
   const ax = axis === 'x' ? 'x' : axis === 'y' ? 'y' : 'z';
+  // Làm mượt contour (bỏ điểm gần trùng, giữ hình dạng)
+  const smooth = [];
+  clean.forEach(p => {
+    if (!smooth.length || smooth[smooth.length-1].distanceTo(p) > 1e-5) smooth.push(p);
+  });
+  if (smooth.length >= 2 && smooth[0].distanceTo(smooth[smooth.length-1]) < 1e-5) {
+    /* already closed */
+  } else if (smooth.length >= 3) {
+    smooth.push(smooth[0].clone());
+  }
   const to2 = (v) => ax === 'x' ? [v.y, v.z] : ax === 'y' ? [v.x, v.z] : [v.x, v.y];
   const shape = new THREE.Shape();
-  clean.forEach((p, i) => {
+  smooth.forEach((p, i) => {
     const [u, w] = to2(p);
     if (i === 0) shape.moveTo(u, w); else shape.lineTo(u, w);
   });
@@ -1429,23 +1454,34 @@ function extrudeOneObject(src, height, axis) {
   const depth = Math.abs(height);
   let geom;
   try {
-    geom = new THREE.ExtrudeGeometry(shape, { depth: depth, bevelEnabled: false, steps: 1, curveSegments: 12 });
+    // curveSegments cao + steps = mượt như CAD
+    geom = new THREE.ExtrudeGeometry(shape, {
+      depth: depth,
+      bevelEnabled: false,
+      steps: Math.max(1, Math.min(8, Math.ceil(depth * 2))),
+      curveSegments: 64
+    });
+    geom.computeVertexNormals();
   } catch (e) {
     setStatus('EXTRUDE: không tạo được khối (contour lỗi).');
     return false;
   }
   const mesh = new THREE.Mesh(geom, new THREE.MeshStandardMaterial({
-    color: src.color || '#5c7cfa', roughness: 0.35, metalness: 0.08, side: THREE.DoubleSide
+    color: src.color || '#5c7cfa', roughness: 0.32, metalness: 0.06, side: THREE.DoubleSide, flatShading: false
   }));
-  const base = clean[0].clone();
+  // Đặt đúng vị trí theo tọa độ world của contour
+  const baseZ = (() => {
+    let s = 0; smooth.forEach(p => { s += (ax==='z'?p.z:ax==='x'?p.x:p.y); });
+    return s / Math.max(1, smooth.length);
+  })();
   if (ax === 'z') {
-    mesh.position.set(0, 0, height < 0 ? base.z - depth : base.z);
+    mesh.position.set(0, 0, height < 0 ? baseZ - depth : baseZ);
   } else if (ax === 'x') {
     mesh.rotation.y = Math.PI / 2;
-    mesh.position.set(height < 0 ? base.x - depth : base.x, 0, 0);
+    mesh.position.set(height < 0 ? baseZ - depth : baseZ, 0, 0);
   } else {
     mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(0, height < 0 ? base.y - depth : base.y, 0);
+    mesh.position.set(0, height < 0 ? baseZ - depth : baseZ, 0);
   }
   mesh.castShadow = true;
   mesh.receiveShadow = true;
@@ -1472,8 +1508,21 @@ function extrudeOpenToSheet(src, worldPts, height, axis) {
     ax === 'y' ? height : 0,
     ax === 'z' ? height : 0
   );
+  // Nội suy dày điểm dọc đường cong để tấm mượt hơn
+  let path = worldPts.slice();
+  if (path.length >= 2) {
+    const dens = [];
+    for (let i = 0; i < path.length - 1; i++) {
+      const a = path[i], b = path[i+1];
+      const steps = Math.max(1, Math.ceil(a.distanceTo(b) * 8));
+      for (let s = 0; s < steps; s++) dens.push(a.clone().lerp(b, s / steps));
+    }
+    dens.push(path[path.length-1].clone());
+    path = dens;
+  }
   const verts = [];
   const indices = [];
+  worldPts = path;
   worldPts.forEach((p, i) => {
     verts.push(p.x, p.y, p.z);
     verts.push(p.x + off.x, p.y + off.y, p.z + off.z);
@@ -2004,39 +2053,8 @@ function selectObject(objData) {
 }
 
 function updateObjectsList() {
-  const listEl=document.getElementById('objects-list');
-  listEl.innerHTML='';
-  const roots=objects.filter(o=>!o.hiddenByGroup && !(o.parentGroup));
-  const render=(o,depth=0,seen=new Set())=>{
-    if(!o||seen.has(o.id)||depth>20)return;
-    seen.add(o.id);
-    const div=document.createElement('div');
-    div.dataset.objectId=o.id;
-    div.style.marginLeft=`${depth*14}px`;
-    const selected=selectedObjects.includes(o)||o===selectedObject;
-    div.className=`flex items-center justify-between p-1.5 rounded cursor-pointer text-xs ${selected?'bg-[#b88700] text-white':'hover:bg-[#20232a] text-gray-300'}`;
-    const isGroup=o.type==='group';
-    div.innerHTML=`<div class="flex items-center gap-2"><i class="fa-solid ${isGroup?'fa-folder':'fa-cube'} text-[10px]"></i><span>${o.name}</span></div><span class="text-[10px] text-gray-400">${isGroup?'Group':o.type}</span>`;
-    div.oncontextmenu=e=>openObjectContextMenu(e,o);
-    div.onclick=e=>{
-      if(e.ctrlKey||e.metaKey){
-        const set=new Set(selectedObjects);if(set.has(o))set.delete(o);else set.add(o);
-        lastListSelection=o;setSelectionMany([...set],o);return;
-      }
-      if(e.shiftKey&&lastListSelection){
-        const visible=roots;const a=visible.indexOf(lastListSelection),b=visible.indexOf(o);
-        if(a>=0&&b>=0){setSelectionMany(visible.slice(Math.min(a,b),Math.max(a,b)+1),o);return;}
-      }
-      lastListSelection=o;setSelectionMany([o],o);
-    };
-    listEl.appendChild(div);
-    if(isGroup){
-      (o.members||[]).forEach(child=>render(child,depth+1,seen));
-    }
-  };
-  roots.forEach(o=>render(o));
+  updateSceneTree();
 }
-
 function createLayer(name, color='#38d9a9'){
   const clean=String(name??'').trim() || `Layer ${String(layers.length).padStart(2,'0')}`;
   const id=Math.max(0,...layers.map(l=>Number(l.id)||0))+1;
@@ -2092,65 +2110,93 @@ function openObjectContextMenu(event,obj){
   document.addEventListener('pointerdown',hide,true);
 }
 function updateLayersUI() {
-  const layerListEl = document.getElementById('layer-list');
-  layerListEl.innerHTML = '';
-  layers.forEach(l => {
-    const div = document.createElement('div');
-    div.className = `flex items-center justify-between p-1.5 rounded text-xs ${l.id === currentLayerId ? 'bg-[#2e3856] border border-[#5c7cfa]' : 'bg-[#181920]'}`;
-    div.innerHTML = `
-      <div class="flex items-center gap-2">
-        <input type="color" value="${l.color}" class="w-4 h-4 rounded border-0 cursor-pointer bg-transparent" onchange="changeLayerColor(${l.id}, this.value)">
-        <span class="font-medium ${l.id === currentLayerId ? 'text-white' : 'text-gray-300'}">${l.name}</span>
-      </div>
-      <div class="flex items-center gap-1.5">
-        <button class="text-gray-400 hover:text-white" onclick="toggleLayerVisibility(${l.id})"><i class="fa-solid fa-eye${l.visible ? '' : '-slash'}"></i></button>
-        <button class="text-gray-400 hover:text-white" onclick="setCurrentLayer(${l.id})"><i class="fa-solid fa-check ${l.id === currentLayerId ? 'text-indigo-400' : 'opacity-0'}"></i></button>
-      </div>
-    `;
-    layerListEl.appendChild(div);
-  });
+  updateSceneTree();
 }
-
-window.changeLayerColor = (id, color) => {
-  const l = layers.find(x => x.id === Number(id));
-  if (!l) return;
-  l.color = color;
-  const applyColor = obj => {
-    if (!obj) return;
-    obj.color = color;
-    if (obj.mesh) obj.mesh.traverse(node => {
-      if (!node.isMesh || !node.material) return;
-      const materials = Array.isArray(node.material) ? node.material : [node.material];
-      materials.forEach(mat => {
-        if (mat.color) { mat.color.set(color); mat.needsUpdate = true; }
+function updateSceneTree() {
+  const tree = document.getElementById('scene-tree');
+  if (!tree) return;
+  tree.innerHTML = '';
+  const roots = objects.filter(o => !o.hiddenByGroup && !(o.parentGroup));
+  layers.forEach(layer => {
+    const wrap = document.createElement('div');
+    wrap.className = 'mb-1';
+    const row = document.createElement('div');
+    row.className = 'scene-layer-row' + (layer.id === currentLayerId ? ' current' : '');
+    row.innerHTML = '<span style="width:10px;height:10px;border-radius:2px;background:' + layer.color + ';flex-shrink:0"></span>' +
+      '<span class="flex-1 truncate font-medium text-gray-200">' + layer.name + '</span>' +
+      '<button data-act="vis" class="text-gray-400 hover:text-white px-0.5" title="Hiện/Ẩn"><i class="fa-solid ' + (layer.visible===false?'fa-eye-slash':'fa-eye') + ' text-[10px]"></i></button>' +
+      '<button data-act="lock" class="text-gray-400 hover:text-white px-0.5" title="Khóa"><i class="fa-solid ' + (layer.locked?'fa-lock':'fa-lock-open') + ' text-[10px]"></i></button>' +
+      (layer.id===currentLayerId?'<span class="text-[9px] text-indigo-300">●</span>':'');
+    row.onclick = function(e) {
+      if (e.target.closest('button')) return;
+      currentLayerId = layer.id;
+      updateSceneTree();
+      setStatus('Layer hiện hành: ' + layer.name);
+    };
+    const visBtn = row.querySelector('[data-act="vis"]');
+    if (visBtn) visBtn.onclick = function(e) {
+      e.stopPropagation();
+      layer.visible = layer.visible === false ? true : false;
+      objects.forEach(function(o) {
+        if (Number(o.layerId) === Number(layer.id) && o.mesh) o.mesh.visible = layer.visible !== false;
       });
+      updateSceneTree();
+    };
+    const lockBtn = row.querySelector('[data-act="lock"]');
+    if (lockBtn) lockBtn.onclick = function(e) {
+      e.stopPropagation();
+      layer.locked = !layer.locked;
+      updateSceneTree();
+    };
+    wrap.appendChild(row);
+    const layerObjs = roots.filter(function(o) { return Number(o.layerId) === Number(layer.id); });
+    layerObjs.forEach(function(o) {
+      const div = document.createElement('div');
+      const selected = selectedObjects.includes(o) || o === selectedObject;
+      div.className = 'scene-obj-row' + (selected ? ' selected' : ' text-gray-300');
+      div.dataset.objectId = o.id;
+      const isGroup = o.type === 'group';
+      div.innerHTML = '<div class="flex items-center gap-1.5 min-w-0"><i class="fa-solid ' + (isGroup?'fa-folder':'fa-cube') + ' text-[9px] opacity-70"></i><span class="truncate">' + o.name + '</span></div><span class="text-[9px] text-gray-500 ml-1">' + (isGroup?'Group':(o.type||'')) + '</span>';
+      div.oncontextmenu = function(e) { openObjectContextMenu(e, o); };
+      div.onclick = function(e) {
+        if (e.ctrlKey || e.metaKey) {
+          const set = new Set(selectedObjects); if (set.has(o)) set.delete(o); else set.add(o);
+          lastListSelection = o; setSelectionMany([...set], o); return;
+        }
+        lastListSelection = o; setSelectionMany([o], o);
+      };
+      wrap.appendChild(div);
+      if (isGroup) {
+        (o.members || []).forEach(function(child) {
+          const cdiv = document.createElement('div');
+          const csel = selectedObjects.includes(child) || child === selectedObject;
+          cdiv.className = 'scene-obj-row' + (csel ? ' selected' : ' text-gray-400');
+          cdiv.style.paddingLeft = '34px';
+          cdiv.innerHTML = '<div class="flex items-center gap-1.5"><i class="fa-solid fa-cube text-[9px]"></i><span class="truncate">' + child.name + '</span></div>';
+          cdiv.onclick = function() { lastListSelection = child; setSelectionMany([child], child); };
+          cdiv.oncontextmenu = function(e) { openObjectContextMenu(e, child); };
+          wrap.appendChild(cdiv);
+        });
+      }
     });
-    if (obj.type === 'group' && obj.members) obj.members.forEach(applyColor);
-  };
-  objects.filter(o => o.layerId === l.id && !o.hiddenByGroup).forEach(applyColor);
-  // Also color grouped children assigned to the layer.
-  objects.filter(o => o.layerId === l.id && o.hiddenByGroup).forEach(applyColor);
-  updateLayersUI();
-  setStatus(`Đã đổi màu layer "${l.name}" và các vật thể thuộc layer.`);
-};
-
-window.toggleLayerVisibility = (id) => {
-  const l = layers.find(x => x.id === id);
-  if (l) {
-    l.visible = !l.visible;
-    objects.forEach(o => {
-      if (o.layerId === id) o.mesh.visible = l.visible;
+    tree.appendChild(wrap);
+  });
+  const known = new Set(layers.map(function(l) { return Number(l.id); }));
+  const orphans = roots.filter(function(o) { return !known.has(Number(o.layerId)); });
+  if (orphans.length) {
+    const wrap = document.createElement('div');
+    wrap.innerHTML = '<div class="text-[10px] text-gray-500 px-1 py-1">Không layer</div>';
+    orphans.forEach(function(o) {
+      const div = document.createElement('div');
+      const selected = selectedObjects.includes(o) || o === selectedObject;
+      div.className = 'scene-obj-row' + (selected ? ' selected' : ' text-gray-300');
+      div.innerHTML = '<span class="truncate">' + o.name + '</span>';
+      div.onclick = function() { setSelectionMany([o], o); };
+      wrap.appendChild(div);
     });
-    updateLayersUI();
+    tree.appendChild(wrap);
   }
-};
-
-window.setCurrentLayer = (id) => {
-  currentLayerId = Number(id);
-  updateLayersUI();
-  const layer=layers.find(l=>l.id===currentLayerId);
-  setStatus(layer?`Layer hiện hành: ${layer.name} (${layer.color})`:`Đã chuyển layer hiện hành sang layer #${id}`);
-};
+}
 
 // Event Listeners & Interaction
 function setupEvents() {
@@ -2175,9 +2221,14 @@ function setupEvents() {
     const PX = { Endpoint: 28, Midpoint: 26, Near: 18, Center: 26, Face: 16 };
     let best=null, bestPx=999, bestKind='';
 
-    // Điểm con trỏ trên mặt phẳng XY (dùng cho Near)
+    // CPlane: mặt phẳng XY tại Z của điểm vẽ cuối (hoặc 0) — vẽ 3D không kẹt Top
+    let cplane = plane;
+    if (typeof drawMode !== 'undefined' && drawMode && Array.isArray(drawPoints) && drawPoints.length) {
+      const z0 = drawPoints[drawPoints.length - 1].z || 0;
+      cplane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -z0);
+    }
     const planeHit = new THREE.Vector3();
-    const hasPlane = !!raycaster.ray.intersectPlane(plane, planeHit);
+    const hasPlane = !!raycaster.ray.intersectPlane(cplane, planeHit);
 
     function consider(pt, kind) {
       if (!pt) return;
@@ -2288,7 +2339,8 @@ function setupEvents() {
       });
     }
 
-    if (!best && wantFace) {
+    // Raycast mặt 3D (ưu tiên khi Face bật; luôn thử làm fallback khi đang vẽ)
+    if (!best && (wantFace || (typeof drawMode !== 'undefined' && drawMode))) {
       const hits = raycaster.intersectObjects(
         objects.filter(o => o.mesh && o.mesh.visible && !o.hiddenByGroup).map(o => o.mesh), true
       );
@@ -2313,6 +2365,7 @@ function setupEvents() {
     if (marker) { marker.style.display = 'none'; marker.dataset.label = ''; }
     const st = document.getElementById('snap-status');
     if (st) st.textContent = snapEnabled ? 'ON' : 'OFF';
+    lastSnapKind = '';
     return hasPlane ? planeHit.clone() : null;
   }
   canvas.addEventListener('pointerdown',e=>{
@@ -2332,7 +2385,11 @@ function setupEvents() {
     if(drawMode){
       const world=pointerWorld(e);if(!world)return;
       let p=world.clone();
-      if(drawMode!=='line'&&drawMode!=='polyline'&&drawMode!=='spline')p.z=0;
+      // Rectangle/Circle/Arc giữ phẳng theo CPlane của điểm đầu; line/poly/spline giữ Z 3D
+      if(drawMode==='rectangle'||drawMode==='circle'||drawMode==='arc'){
+        if(drawPoints.length) p.z = drawPoints[0].z;
+        else if(!lastSnapKind) p.z = p.z; // giữ Z từ CPlane/Face
+      }
       if((e.shiftKey||orthoEnabled)&&drawPoints.length&&!lastSnapKind){const prev=drawPoints[drawPoints.length-1],dx=p.x-prev.x,dy=p.y-prev.y,dz=p.z-prev.z;if(Math.abs(dx)>=Math.abs(dy)){p.y=prev.y;}else{p.x=prev.x;}if(drawMode==='line'||drawMode==='polyline'||drawMode==='spline'){if(Math.abs(dz)>Math.max(Math.abs(dx),Math.abs(dy))) {p.x=prev.x;p.y=prev.y;} else p.z=prev.z;}}
       if(drawMode==='rectangle'||drawMode==='circle'){if(drawPoints.length===0)drawPoints.push(p);else{drawPoints.push(p);finishDraw();}}
       else if(drawMode==='line'){drawPoints.push(p);if(drawPoints.length>=2){finishDraw(true);/* keep LINE active until Enter/Space/Esc */setDrawMode('line');setStatus('LINE — điểm tiếp theo · Enter/Space kết thúc · Esc hủy.');}}
@@ -2597,7 +2654,7 @@ function setupEvents() {
       }
       return;
     }
-    if(drawMode&&world){let p=world.clone();if(drawMode!=='line'&&drawMode!=='polyline'&&drawMode!=='spline')p.z=0;if((e.shiftKey||orthoEnabled)&&drawPoints.length&&!lastSnapKind){const prev=drawPoints[drawPoints.length-1],dx=p.x-prev.x,dy=p.y-prev.y,dz=p.z-prev.z;if(Math.abs(dx)>=Math.abs(dy))p.y=prev.y;else p.x=prev.x;if((drawMode==='line'||drawMode==='polyline'||drawMode==='spline')&&Math.abs(dz)>Math.max(Math.abs(dx),Math.abs(dy))){p.x=prev.x;p.y=prev.y;}else p.z=prev.z;}redrawPreview(p);return;}
+    if(drawMode&&world){let p=world.clone();if((drawMode==='rectangle'||drawMode==='circle'||drawMode==='arc')&&drawPoints.length)p.z=drawPoints[0].z;if((e.shiftKey||orthoEnabled)&&drawPoints.length&&!lastSnapKind){const prev=drawPoints[drawPoints.length-1],dx=p.x-prev.x,dy=p.y-prev.y,dz=p.z-prev.z;if(Math.abs(dx)>=Math.abs(dy))p.y=prev.y;else p.x=prev.x;if((drawMode==='line'||drawMode==='polyline'||drawMode==='spline')&&Math.abs(dz)>Math.max(Math.abs(dx),Math.abs(dy))){p.x=prev.x;p.y=prev.y;}else p.z=prev.z;}redrawPreview(p);return;}
     if(dragObject&&world){
       // Giữ cùng mặt phẳng kéo → không khựng / nhảy Z
       const z0 = (typeof window.__vcadDragPlaneZ === 'number') ? window.__vcadDragPlaneZ : dragStartWorld.z;
