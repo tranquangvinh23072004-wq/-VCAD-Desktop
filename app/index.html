@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VC@D 1.2.16</title>
+<title>VC@D 1.2.17</title>
 <!-- Tailwind CSS & FontAwesome -->
 <script src="./vendor/tailwindcss.js"></script>
 <link rel="stylesheet" href="./vendor/fontawesome/css/all.min.css">
@@ -111,29 +111,43 @@
     border-radius: 4px; padding: 1px 5px; white-space: nowrap;
     pointer-events: none;
   }
-  /* Top toolbar dock — tối ưu kiểu CAD */
+  /* Top toolbar dock — ribbon kiểu CAD/Rhino */
   #app-body.dock-tools-top {
     grid-template-rows: auto minmax(0,1fr);
     grid-template-columns: minmax(0,1fr) minmax(240px,var(--props-width));
     grid-template-areas: "tools tools" "stage props";
   }
   #app-body.dock-tools-top #tools-panel {
-    max-width: none; width: auto; resize: none;
-    max-height: 118px; overflow-x: auto; overflow-y: hidden;
-    border-right: none !important;
+    max-width: none !important; width: 100% !important; resize: none !important;
+    max-height: 132px; min-height: 96px;
+    overflow-x: auto; overflow-y: hidden;
+    border-right: none !important; border-left: none !important;
     border-bottom: 1px solid var(--border);
-    display: flex; flex-direction: row; flex-wrap: nowrap; align-items: stretch;
-    padding: 0 !important;
+    display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important;
+    align-items: stretch; padding: 0 !important;
+    background: linear-gradient(180deg, #1a1e2a 0%, #141820 100%);
   }
   #app-body.dock-tools-top #tools-panel > div {
     border-bottom: none !important;
     border-right: 1px solid var(--border-soft);
     min-width: max-content; flex: 0 0 auto;
-    padding: 6px 8px !important;
+    padding: 4px 8px !important;
+    max-height: 132px; overflow: hidden;
   }
-  #app-body.dock-tools-top #tools-panel h3 { margin-bottom: 4px !important; }
-  #app-body.dock-tools-top .grid { gap: 4px !important; }
-  #app-body.dock-tools-top .rhino-btn { padding: 4px 6px !important; font-size: 11px; }
+  #app-body.dock-tools-top #tools-panel h3 {
+    margin-bottom: 3px !important; font-size: 9px !important; letter-spacing: .06em;
+  }
+  #app-body.dock-tools-top .grid { gap: 3px !important; }
+  #app-body.dock-tools-top .rhino-btn {
+    padding: 3px 6px !important; font-size: 10px !important; white-space: nowrap;
+  }
+  #app-body.dock-tools-top .vcad-panel-titlebar { display: none !important; }
+  #app-body.dock-tools-top .vcad-resize-grip { display: none !important; }
+  /* Khi top: props full height bên phải */
+  #app-body.dock-tools-top #properties-panel {
+    grid-row: 2; max-height: none;
+  }
+  #app-body.dock-tools-top #stage-panel { grid-row: 2; }
   /* Scene tree (layers + objects gộp) */
   .scene-layer-row { display:flex; align-items:center; gap:6px; padding:5px 6px; border-radius:6px; cursor:pointer; }
   .scene-layer-row.current { background:#2e3856; border:1px solid #5c7cfa; }
@@ -517,7 +531,7 @@
   <div class="flex items-center gap-3">
     <div class="font-bold text-sm tracking-wide flex items-center gap-2 select-none">
       <i class="fa-solid fa-cube"></i> VC@D
-      <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-500/30 text-cyan-300/90 bg-cyan-500/10">1.2.16</span>
+      <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-500/30 text-cyan-300/90 bg-cyan-500/10">1.2.17</span>
     </div>
     <div class="h-4 w-[1px] bg-[#383e4c]"></div>
     <div id="drawing-title-wrap" class="flex items-center gap-1.5 max-w-[150px] min-w-[90px] text-xs text-gray-300" title="Tên bản vẽ hiện tại">
@@ -3550,16 +3564,58 @@ function runExtrudeOnTarget(target, height, axis) {
 
 function deleteAllObjects() {
   if (!objects.length) { setStatus('Không có đối tượng để xóa.'); return; }
-  if (!confirm('Xóa TẤT CẢ ' + objects.length + ' đối tượng?')) return;
-  objects.forEach(o => {
-    if (o.mesh) { scene.remove(o.mesh); if (o.mesh.geometry) o.mesh.geometry.dispose(); }
-  });
-  objects = [];
-  selectedObject = null;
-  selectedObjects = [];
-  if (typeof endPolyEditMode === 'function') endPolyEditMode();
-  updateObjectsList();
-  setStatus('Đã xóa tất cả đối tượng.');
+  const n = objects.length;
+  const go = function() {
+    try {
+      if (typeof cancelDraw === 'function') cancelDraw();
+      if (typeof endPolyEditMode === 'function') endPolyEditMode();
+      if (typeof clearPolyEditHandles === 'function') clearPolyEditHandles();
+      pendingCmd = null;
+      drawMode = null;
+      drawPoints = [];
+      if (previewLine) {
+        try { scene.remove(previewLine); if (previewLine.geometry) previewLine.geometry.dispose(); } catch (_) {}
+        previewLine = null;
+      }
+      const list = objects.slice();
+      objects = [];
+      list.forEach(function(o) {
+        if (!o || !o.mesh) return;
+        try {
+          scene.remove(o.mesh);
+          o.mesh.traverse(function(ch) {
+            if (ch.geometry) ch.geometry.dispose();
+            if (ch.material) {
+              const mats = Array.isArray(ch.material) ? ch.material : [ch.material];
+              mats.forEach(function(m) { try { if (m.map) m.map.dispose(); m.dispose(); } catch(_){} });
+            }
+          });
+        } catch (err) { console.warn('dispose', err); }
+      });
+      selectedObject = null;
+      selectedObjects = [];
+      if (typeof gumballGroup !== 'undefined' && gumballGroup) gumballGroup.visible = false;
+      try { updateSceneTree(); } catch(_) { try { updateObjectsList(); } catch(__){} }
+      const sel = document.getElementById('sel-tag');
+      if (sel) sel.textContent = 'Chưa chọn đối tượng';
+      setStatus('Đã xóa tất cả ' + n + ' đối tượng. Có thể vẽ tiếp.');
+    } catch (err) {
+      console.error('deleteAll', err);
+      setStatus('DELETEALL lỗi: ' + (err.message || err));
+    }
+  };
+  if (typeof commandModal === 'function') {
+    commandModal('DELETE ALL', 'Gõ YES để xóa hết ' + n + ' đối tượng.', 'YES', function(val) {
+      if (val === null || val === true) return;
+      if (String(val).trim().toUpperCase() !== 'YES') {
+        setStatus('Đã hủy DELETE ALL.');
+        return;
+      }
+      go();
+    });
+  } else if (window.confirm('Xóa TẤT CẢ ' + n + ' đối tượng?')) {
+    go();
+  }
 }
 function deleteSelectedObjects() {
   const targets = (selectedObjects && selectedObjects.length) ? [...selectedObjects] : (selectedObject ? [selectedObject] : []);
@@ -4076,7 +4132,7 @@ function initDockLayout(){
     const panel=panels[panelId]; if(!panel)return;
     const sel=document.querySelector('[data-dock-target="'+panelId+'"]');
     // Chuẩn hóa vị trí hợp lệ theo từng panel
-    if(panelId==='tools-panel' && where!=='bottom' && where!=='top') where='left';
+    if(panelId==='tools-panel' && where!=='bottom' && where!=='top') where='top';
     if(panelId==='properties-panel' && where!=='bottom') where='right';
     if(sel && [...sel.options].some(o=>o.value===where)) sel.value=where;
     panel.classList.remove('vcad-floating','vcad-drop-target','vcad-panel-hidden');
@@ -4092,7 +4148,7 @@ function initDockLayout(){
     setTimeout(()=>{if(camera&&renderer)onWindowResize();},80);
   };
   const apply=()=>{
-    const a=document.querySelector('[data-dock-target="tools-panel"]')?.value||'left';
+    const a=document.querySelector('[data-dock-target="tools-panel"]')?.value||'top';
     const b=document.querySelector('[data-dock-target="properties-panel"]')?.value||'right';
     body.classList.remove('dock-tools-bottom','dock-props-bottom','dock-both-bottom','dock-tools-top');
     tools.classList.toggle('docked-bottom',a==='bottom');
@@ -4105,7 +4161,21 @@ function initDockLayout(){
     try{localStorage.setItem('vcad-dock-layout',JSON.stringify({tools:a,properties:b}));}catch(_){}
     setTimeout(()=>{if(camera&&renderer)onWindowResize();},100);
   };
-  try{const saved=JSON.parse(localStorage.getItem('vcad-dock-layout')||'null');if(saved){const t=document.querySelector('[data-dock-target="tools-panel"]'),p=document.querySelector('[data-dock-target="properties-panel"]');if(t&&['left','bottom','top'].includes(saved.tools))t.value=saved.tools;if(p&&['right','bottom'].includes(saved.properties))p.value=saved.properties;}}catch(_){}
+  try{
+    const saved=JSON.parse(localStorage.getItem('vcad-dock-layout')||'null');
+    const t=document.querySelector('[data-dock-target="tools-panel"]');
+    const p=document.querySelector('[data-dock-target="properties-panel"]');
+    // Mặc định CAD: thanh công cụ TRÊN. Chỉ giữ bottom nếu user chủ động chọn.
+    if(t){
+      if(saved && saved.tools==='bottom') t.value='bottom';
+      else t.value='top';
+    }
+    if(p && saved && ['right','bottom'].includes(saved.properties)) p.value=saved.properties;
+  }catch(_){}
+  if(document.querySelector('[data-dock-target="tools-panel"]')){
+    document.querySelector('[data-dock-target="tools-panel"]').value =
+      document.querySelector('[data-dock-target="tools-panel"]').value === 'bottom' ? 'bottom' : 'top';
+  }
   selects.forEach(el=>el.addEventListener('change',apply));apply();
   const bodyEl=body;
   const addGrip=(panel,side)=>{const grip=document.createElement('div');grip.className='vcad-resize-grip';grip.style.cssText=`position:absolute;${side==='right'?'right:0;top:0;width:5px;height:100%;cursor:col-resize;':'left:0;top:0;width:5px;height:100%;cursor:col-resize;'}z-index:30;background:transparent`;panel.style.position='relative';panel.appendChild(grip);grip.addEventListener('pointerdown',e=>{if(panel.classList.contains('docked-bottom')||panel.classList.contains('vcad-floating'))return;e.preventDefault();grip.setPointerCapture(e.pointerId);const startX=e.clientX,computed=getComputedStyle(bodyEl),start=side==='right'?parseFloat(computed.getPropertyValue('--tools-width'))||230:parseFloat(computed.getPropertyValue('--props-width'))||260;const move=ev=>{const delta=ev.clientX-startX;const val=Math.max(side==='right'?190:210,Math.min(window.innerWidth*.42,start+(side==='right'?delta:-delta)));bodyEl.style.setProperty(side==='right'?'--tools-width':'--props-width',val+'px');onWindowResize();};const end=()=>{grip.removeEventListener('pointermove',move);grip.removeEventListener('pointerup',end);try{localStorage.setItem('vcad-panel-widths',JSON.stringify({tools:bodyEl.style.getPropertyValue('--tools-width'),props:bodyEl.style.getPropertyValue('--props-width')}));}catch(_){}};grip.addEventListener('pointermove',move);grip.addEventListener('pointerup',end);});};
@@ -4140,7 +4210,7 @@ function initDockLayout(){
   menuBtn?.addEventListener('click',e=>{e.stopPropagation();menu.classList.toggle('hidden');updatePanelMenu();});
   document.querySelectorAll('[data-panel-show]').forEach(btn=>btn.addEventListener('click',()=>{const id=btn.dataset.panelShow;panels[id].classList.remove('vcad-panel-hidden','vcad-floating');panels[id].style.removeProperty('position');panels[id].style.removeProperty('z-index');body.classList.remove(id==='tools-panel'?'vcad-hide-tools':'vcad-hide-props');menu.classList.add('hidden');updatePanelMenu();apply();if(camera&&renderer)onWindowResize();}));
   document.addEventListener('click',e=>{if(!e.target.closest('#panel-menu-wrap'))menu?.classList.add('hidden');});
-  document.getElementById('btn-reset-layout')?.addEventListener('click',()=>{['tools-panel','properties-panel'].forEach(id=>{const panel=panels[id];panel.classList.remove('vcad-panel-hidden','vcad-floating','vcad-drop-target');panel.style.removeProperty('position');panel.style.removeProperty('z-index');panel.style.removeProperty('left');panel.style.removeProperty('top');panel.style.removeProperty('right');panel.style.removeProperty('width');panel.style.removeProperty('height');});body.classList.remove('vcad-hide-tools','vcad-hide-props');const t=document.querySelector('[data-dock-target="tools-panel"]'),p=document.querySelector('[data-dock-target="properties-panel"]');if(t)t.value='left';if(p)p.value='right';body.style.setProperty('--tools-width','230px');body.style.setProperty('--props-width','260px');try{localStorage.removeItem('vcad-dock-layout');localStorage.removeItem('vcad-panel-widths');localStorage.removeItem('vcad-floating-tools-panel');localStorage.removeItem('vcad-floating-properties-panel');}catch(_){}apply();menu?.classList.add('hidden');updatePanelMenu();if(camera&&renderer)onWindowResize();});
+  document.getElementById('btn-reset-layout')?.addEventListener('click',()=>{['tools-panel','properties-panel'].forEach(id=>{const panel=panels[id];panel.classList.remove('vcad-panel-hidden','vcad-floating','vcad-drop-target');panel.style.removeProperty('position');panel.style.removeProperty('z-index');panel.style.removeProperty('left');panel.style.removeProperty('top');panel.style.removeProperty('right');panel.style.removeProperty('width');panel.style.removeProperty('height');});body.classList.remove('vcad-hide-tools','vcad-hide-props');const t=document.querySelector('[data-dock-target="tools-panel"]'),p=document.querySelector('[data-dock-target="properties-panel"]');if(t)t.value='top';if(p)p.value='right';body.style.setProperty('--tools-width','230px');body.style.setProperty('--props-width','260px');try{localStorage.removeItem('vcad-dock-layout');localStorage.removeItem('vcad-panel-widths');localStorage.removeItem('vcad-floating-tools-panel');localStorage.removeItem('vcad-floating-properties-panel');}catch(_){}apply();menu?.classList.add('hidden');updatePanelMenu();if(camera&&renderer)onWindowResize();});
   ['snap-endpoint','snap-midpoint','snap-near','snap-center','snap-face'].forEach(id=>document.getElementById(id)?.addEventListener('change',()=>{const any=['snap-endpoint','snap-midpoint','snap-near','snap-center','snap-face'].some(k=>document.getElementById(k)?.checked);const st=document.getElementById('snap-status');if(st)st.textContent=any?'ON':'OFF';if(!any){const m=document.getElementById('snap-marker');if(m)m.style.display='none';}}));
 }
 
