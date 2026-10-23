@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VC@D 1.2.10</title>
+<title>VC@D 1.2.13.1</title>
 <!-- Tailwind CSS & FontAwesome -->
 <script src="./vendor/tailwindcss.js"></script>
 <link rel="stylesheet" href="./vendor/fontawesome/css/all.min.css">
@@ -499,7 +499,7 @@
   <div class="flex items-center gap-3">
     <div class="font-bold text-sm tracking-wide flex items-center gap-2 select-none">
       <i class="fa-solid fa-cube"></i> VC@D
-      <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-500/30 text-cyan-300/90 bg-cyan-500/10">1.2.10</span>
+      <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-500/30 text-cyan-300/90 bg-cyan-500/10">1.2.13.1</span>
     </div>
     <div class="h-4 w-[1px] bg-[#383e4c]"></div>
     <div id="drawing-title-wrap" class="flex items-center gap-1.5 max-w-[150px] min-w-[90px] text-xs text-gray-300" title="Tên bản vẽ hiện tại">
@@ -581,7 +581,8 @@
         </label>
       </div>
       <div class="mt-2 flex gap-1.5">
-        <button id="btn-extrude" class="rhino-btn flex-1 p-1.5 rounded text-center font-medium"><i class="fa-solid fa-arrow-up-from-bracket text-blue-400"></i> Extrude 2D</button>
+        <button id="btn-extrude" class="rhino-btn flex-1 p-1.5 rounded text-center font-medium"><i class="fa-solid fa-arrow-up-from-bracket text-blue-400"></i> Extrude</button>
+        <button id="btn-planarsrf" class="rhino-btn flex-1 p-1.5 rounded text-center font-medium"><i class="fa-solid fa-border-all text-cyan-300"></i> PlanarSrf</button>
         <button id="btn-cancel-draw" class="rhino-btn px-2.5 py-1.5 rounded text-red-400" title="Hủy vẽ">Hủy</button>
       </div>
     </div>
@@ -589,8 +590,9 @@
     <!-- Transform & Advanced Tools -->
     <div class="p-3 border-b border-[#323642]">
       <h3 class="font-semibold text-gray-400 uppercase tracking-wider mb-2 text-[10px] flex items-center gap-1"><i class="fa-solid fa-sliders text-indigo-400"></i> Transform</h3>
-      <div class="grid grid-cols-3 gap-1.5 mb-2">
-        <button data-mode="move" class="rhino-btn p-1.5 rounded text-center active"><i class="fa-solid fa-arrows-up-down-left-right"></i><div class="text-[10px] mt-0.5">Move</div></button>
+      <div class="grid grid-cols-4 gap-1.5 mb-2">
+        <button data-mode="select" class="rhino-btn p-1.5 rounded text-center active"><i class="fa-solid fa-arrow-pointer"></i><div class="text-[10px] mt-0.5">Select</div></button>
+        <button data-mode="move" class="rhino-btn p-1.5 rounded text-center"><i class="fa-solid fa-arrows-up-down-left-right"></i><div class="text-[10px] mt-0.5">Move</div></button>
         <button data-mode="rotate" class="rhino-btn p-1.5 rounded text-center"><i class="fa-solid fa-rotate"></i><div class="text-[10px] mt-0.5">Rotate</div></button>
         <button data-mode="scale" class="rhino-btn p-1.5 rounded text-center"><i class="fa-solid fa-expand"></i><div class="text-[10px] mt-0.5">Scale</div></button>
       </div>
@@ -615,6 +617,9 @@
         <button id="btn-array" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1"><i class="fa-solid fa-border-none text-purple-300"></i> Array</button>
         <button id="btn-copy" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1"><i class="fa-regular fa-copy text-yellow-300"></i> Copy</button>
         <button id="btn-length" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1"><i class="fa-solid fa-ruler text-teal-300"></i> Length</button>
+        <button id="btn-dim-linear" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1"><i class="fa-solid fa-ruler-horizontal text-amber-300"></i> Dim 2D</button>
+        <button id="btn-dim-aligned" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1"><i class="fa-solid fa-cube text-orange-300"></i> Dim 3D</button>
+        <button id="btn-delete-all" class="rhino-btn p-1.5 rounded text-left flex items-center gap-1"><i class="fa-solid fa-trash text-red-400"></i> Delete All</button>
       </div>
       <div class="grid grid-cols-2 gap-1.5 mb-2">
         <button id="btn-ortho" class="rhino-btn p-1.5 rounded">Ortho: OFF</button>
@@ -627,6 +632,7 @@
         <div class="grid grid-cols-2 gap-1 text-[10px]">
           <label class="flex items-center gap-1"><input id="snap-endpoint" type="checkbox" checked> Endpoint</label>
           <label class="flex items-center gap-1"><input id="snap-midpoint" type="checkbox" checked> Midpoint</label>
+          <label class="flex items-center gap-1"><input id="snap-near" type="checkbox" checked> Near</label>
           <label class="flex items-center gap-1"><input id="snap-center" type="checkbox" checked> Center</label>
           <label class="flex items-center gap-1"><input id="snap-face" type="checkbox" checked> Face/Surface</label>
         </div>
@@ -862,7 +868,7 @@ let layers = [
   { id: 2, name: 'Layer 01', color: '#38d9a9', visible: true, locked: false }
 ];
 let currentLayerId = 1;
-let currentMode = 'move';
+let currentMode = 'select';
 let lastCommand = '';
 let lastCommandRaw = '';
 let pendingCmd = null; // {type, step, data}
@@ -1010,9 +1016,7 @@ function init() {
   setupGumball();
   setupEvents();
   
-  // Create default objects
-  createObject('box', { name: 'Box_01', pos: [0, 0, 1], color: '#5c7cfa' });
-  createObject('cylinder', { name: 'Cylinder_01', pos: [4, 0, 1], color: '#38d9a9' });
+  // Không tạo sẵn box/cylinder — canvas trống khi mở app
 
   try { updateLayersUI(); } catch (e) { console.warn('layers', e); }
   try { updateObjectsList(); } catch (e) { console.warn('objects', e); }
@@ -1114,9 +1118,11 @@ function createObject(type, options = {}) {
     case 'torus':
       geometry = new THREE.TorusGeometry(1.2, 0.4, 16, 32);
       break;
-    case 'plane':
-      geometry = new THREE.PlaneGeometry(options.dims?.[0] || 3, options.dims?.[1] || 3);
+    case 'plane': {
+      const pw = options.dims?.[0] || 3, ph = options.dims?.[1] || 3;
+      geometry = new THREE.PlaneGeometry(pw, ph);
       break;
+    }
     default:
       geometry = new THREE.BoxGeometry(2, 2, 2);
   }
@@ -1132,16 +1138,23 @@ function createObject(type, options = {}) {
   if (options.rot) mesh.rotation.set(...options.rot);
   if (options.scale) mesh.scale.set(...options.scale);
 
+  let planeShapePts = null;
+  if (type === 'plane') {
+    const pw = options.dims?.[0] || 3, ph = options.dims?.[1] || 3;
+    planeShapePts = [[-pw/2,-ph/2,0],[pw/2,-ph/2,0],[pw/2,ph/2,0],[-pw/2,ph/2,0],[-pw/2,-ph/2,0]];
+  }
   const objData = {
     id: objectIdCounter++,
     name: options.name || `${type.charAt(0).toUpperCase() + type.slice(1)}_${String(objectIdCounter).padStart(2, '0')}`,
     type: type,
     mesh: mesh,
     layerId: currentLayerId,
-    color: color
+    color: color,
+    shapePoints: planeShapePts,
+    closed: type === 'plane'
   };
 
-  mesh.userData = { objData };
+  mesh.userData = { objData, shapePoints: planeShapePts, closed: type === 'plane' };
   scene.add(mesh);
   objects.push(objData);
   selectObject(objData);
@@ -1181,6 +1194,9 @@ function refreshProperties() {
 }
 function setDrawMode(mode) {
   cancelDraw(); drawMode=mode; drawPoints=[];
+  const cvs=document.getElementById('view-canvas');
+  if(cvs){cvs.classList.remove('vcad-draw','vcad-move','vcad-rotate');if(mode)cvs.classList.add('vcad-draw');}
+
   lastCommandRaw = mode; lastCommand = mode;
   // LMB = vẽ điểm; RMB = xoay; scroll = zoom. Không gán LEFT=-1 (gây lỗi một số bản OrbitControls).
   if (controls) {
@@ -1221,6 +1237,9 @@ function redrawPreview(cursorPoint=null) {
   previewLine=new THREE.Line(geom,new THREE.LineBasicMaterial({color: drawMode==='spline' ? 0xb197fc : 0xffd166})); scene.add(previewLine);
 }
 function cancelDraw() {
+  const cvs=document.getElementById('view-canvas');
+  if(cvs){cvs.classList.remove('vcad-draw');if(currentMode==='move')cvs.classList.add('vcad-move');else if(currentMode==='rotate')cvs.classList.add('vcad-rotate');}
+
   if(previewLine){scene.remove(previewLine);previewLine.geometry.dispose();previewLine=null;}
   drawMode=null;drawPoints=[];
   if (controls) {
@@ -1234,9 +1253,10 @@ function cancelDraw() {
     } catch (_) {}
   }
 }
-function finishDraw() {
+function finishDraw(keepMode) {
   if(!drawMode) return;
   const mode=drawMode, pts=drawPoints.map(p=>p.clone());
+  const _keep=!!keepMode;
   if(previewLine){scene.remove(previewLine);previewLine.geometry.dispose();previewLine=null;}
   if(mode==='line' && pts.length<2){setStatus('Line cần 2 điểm.');return;}
   if((mode==='polyline'||mode==='spline') && pts.length<2){setStatus((mode==='spline'?'Spline':'Polyline')+' cần ít nhất 2 điểm.');return;}
@@ -1299,92 +1319,276 @@ function finishDraw() {
   if (mesh.material && mesh.material.color) mesh.material.color.set(col);
   const obj={id:objectIdCounter++,name:`${mode[0].toUpperCase()+mode.slice(1)}_${String(objectIdCounter).padStart(2,'0')}`,type:mode==='line'?'line2d':mode,mesh,layerId:currentLayerId,color:col,shapePoints,closed,controlPoints:controlPoints||null};
   mesh.userData={objData:obj,shapePoints,closed};scene.add(mesh);objects.push(obj);selectObject(obj);updateObjectsList();
-  cancelDraw();setStatus(`Đã tạo ${obj.name}.`);
+  if(_keep){drawMode=null;drawPoints=[];if(previewLine){scene.remove(previewLine);previewLine.geometry.dispose();previewLine=null;}setStatus(`Đã tạo ${obj.name}.`);}
+  else{cancelDraw();setStatus(`Đã tạo ${obj.name}.`);}
 }
+function vcadGetOutlinePoints(obj) {
+  if (!obj || !obj.mesh) return [];
+  obj.mesh.updateMatrixWorld(true);
+  // Explicit shapePoints (curves)
+  if (Array.isArray(obj.shapePoints) && obj.shapePoints.length >= 2) {
+    return obj.shapePoints.map(p => {
+      const v = new THREE.Vector3(Number(p[0])||0, Number(p[1])||0, Number(p[2])||0);
+      return v.applyMatrix4(obj.mesh.matrixWorld);
+    });
+  }
+  // Plane / mesh with known type: use bounding rect on XY (or local plane)
+  if (obj.type === 'plane' || (obj.mesh.geometry && obj.mesh.geometry.type === 'PlaneGeometry')) {
+    const geo = obj.mesh.geometry;
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox;
+    const corners = [
+      new THREE.Vector3(bb.min.x, bb.min.y, 0),
+      new THREE.Vector3(bb.max.x, bb.min.y, 0),
+      new THREE.Vector3(bb.max.x, bb.max.y, 0),
+      new THREE.Vector3(bb.min.x, bb.max.y, 0)
+    ];
+    return corners.map(v => v.applyMatrix4(obj.mesh.matrixWorld));
+  }
+  // Generic mesh: try unique outline from edges of bounding box projected
+  const box = new THREE.Box3().setFromObject(obj.mesh);
+  if (box.isEmpty()) return [];
+  const min = box.min, max = box.max;
+  // Prefer XY footprint
+  return [
+    new THREE.Vector3(min.x, min.y, min.z),
+    new THREE.Vector3(max.x, min.y, min.z),
+    new THREE.Vector3(max.x, max.y, min.z),
+    new THREE.Vector3(min.x, max.y, min.z)
+  ];
+}
+
+function vcadIsClosedContour(pts, tol) {
+  tol = tol || 1e-4;
+  if (!pts || pts.length < 3) return false;
+  return pts[0].distanceTo(pts[pts.length - 1]) < tol;
+}
+
 function extrudeSelected(height, axis) {
   axis = (axis || document.getElementById('extrude-axis')?.value || 'z').toLowerCase();
   height = Number(height);
   if (!Number.isFinite(height) || height === 0) {
-    showModal('Extrude', 'Chiều cao Extrude phải khác 0.');
+    showModal('EXTRUDE', 'Chiều cao Extrude phải khác 0 (vd: 2 hoặc -1.5).');
     return;
   }
-  if (!selectedObject) {
-    showModal('Extrude', 'Chọn một đường/mặt 2D kín (Rectangle, Circle hoặc Polyline đóng) trước khi Extrude.');
+  const targets = (selectedObjects && selectedObjects.length)
+    ? selectedObjects.slice()
+    : (selectedObject ? [selectedObject] : []);
+  if (!targets.length) {
+    showModal('EXTRUDE', 'Chọn đường kín / mặt phẳng trước, rồi Extrude.');
     return;
   }
-  // Lấy đỉnh thế giới hiện tại (theo mesh đã di chuyển/xoay)
-  selectedObject.mesh.updateMatrixWorld(true);
-  let worldPts = [];
-  if (Array.isArray(selectedObject.shapePoints) && selectedObject.shapePoints.length >= 3) {
-    worldPts = selectedObject.shapePoints.map(p => {
-      const v = new THREE.Vector3(Number(p[0]) || 0, Number(p[1]) || 0, Number(p[2]) || 0);
-      return v.applyMatrix4(selectedObject.mesh.matrixWorld);
-    });
-  } else {
-    const geom = selectedObject.mesh.geometry;
-    const pos = geom && geom.attributes && geom.attributes.position;
-    if (pos && pos.count >= 3) {
-      for (let i = 0; i < pos.count; i++) {
-        const v = new THREE.Vector3().fromBufferAttribute(pos, i);
-        selectedObject.mesh.localToWorld(v);
-        worldPts.push(v);
-      }
+  let created = 0;
+  targets.forEach(src => {
+    try {
+      const ok = extrudeOneObject(src, height, axis);
+      if (ok) created++;
+    } catch (err) {
+      console.error('extrude', err);
+      setStatus('EXTRUDE lỗi: ' + (err.message || err));
     }
+  });
+  if (created) setStatus('EXTRUDE: đã tạo ' + created + ' đối tượng theo trục ' + axis.toUpperCase() + ' = ' + height + ' m.');
+}
+
+function extrudeOneObject(src, height, axis) {
+  let worldPts = vcadGetOutlinePoints(src);
+  if (worldPts.length < 2) {
+    setStatus('EXTRUDE: ' + (src.name || 'obj') + ' không có đủ điểm.');
+    return false;
   }
-  if (worldPts.length < 3) {
-    showModal('Extrude', 'Đối tượng không có đủ đỉnh để Extrude. Hãy dùng Rectangle, Circle hoặc đóng Polyline (phím C).');
-    return;
+  const closed = vcadIsClosedContour(worldPts) || src.closed || src.type === 'plane' || src.type === 'rectangle' || src.type === 'circle';
+  // Open curve → sheet (ribbon surface)
+  if (!closed && worldPts.length >= 2) {
+    return extrudeOpenToSheet(src, worldPts, height, axis);
   }
-  // Đóng contour nếu chưa đóng
-  const first = worldPts[0], last = worldPts[worldPts.length - 1];
-  if (first.distanceTo(last) > 1e-6) worldPts = worldPts.concat([first.clone()]);
-  // Chiếu lên mặt phẳng vuông góc trục extrude để tạo Shape 2D
+  // Closed → solid
+  if (worldPts[0].distanceTo(worldPts[worldPts.length - 1]) > 1e-6) {
+    worldPts = worldPts.concat([worldPts[0].clone()]);
+  }
+  // Deduplicate consecutive
+  const clean = [];
+  worldPts.forEach(p => {
+    if (!clean.length || clean[clean.length - 1].distanceTo(p) > 1e-8) clean.push(p);
+  });
+  if (clean.length >= 2 && clean[0].distanceTo(clean[clean.length - 1]) < 1e-8) {
+    // keep close
+  }
+  if (clean.length < 4) {
+    setStatus('EXTRUDE: contour quá ít điểm.');
+    return false;
+  }
   const ax = axis === 'x' ? 'x' : axis === 'y' ? 'y' : 'z';
   const to2 = (v) => ax === 'x' ? [v.y, v.z] : ax === 'y' ? [v.x, v.z] : [v.x, v.y];
   const shape = new THREE.Shape();
-  worldPts.forEach((p, i) => {
+  clean.forEach((p, i) => {
     const [u, w] = to2(p);
     if (i === 0) shape.moveTo(u, w); else shape.lineTo(u, w);
   });
   shape.closePath();
   const depth = Math.abs(height);
-  const geom = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, steps: 1 });
-  // ExtrudeGeometry đùn theo +Z local; xoay để khớp trục mong muốn
+  let geom;
+  try {
+    geom = new THREE.ExtrudeGeometry(shape, { depth: depth, bevelEnabled: false, steps: 1, curveSegments: 12 });
+  } catch (e) {
+    setStatus('EXTRUDE: không tạo được khối (contour lỗi).');
+    return false;
+  }
   const mesh = new THREE.Mesh(geom, new THREE.MeshStandardMaterial({
-    color: selectedObject.color || '#5c7cfa', roughness: 0.35, metalness: 0.08, side: THREE.DoubleSide
+    color: src.color || '#5c7cfa', roughness: 0.35, metalness: 0.08, side: THREE.DoubleSide
   }));
-  // Đặt gốc tại điểm đầu contour, hướng extrude theo dấu height
-  const base = worldPts[0].clone();
+  const base = clean[0].clone();
   if (ax === 'z') {
     mesh.position.set(0, 0, height < 0 ? base.z - depth : base.z);
-    // Shape dùng (x,y) tuyệt đối → geometry đã ở đúng XY thế giới
   } else if (ax === 'x') {
-    // local Z → world +X; local X→Y, local Y→Z
     mesh.rotation.y = Math.PI / 2;
     mesh.position.set(height < 0 ? base.x - depth : base.x, 0, 0);
   } else {
-    // local Z → world +Y
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.set(0, height < 0 ? base.y - depth : base.y, 0);
   }
-  // Dịch theo tọa độ còn lại của base (Shape đã chứa offset trong plane)
-  if (ax === 'z') {
-    // no extra XY translate — shape coords already absolute
-  } else if (ax === 'x') {
-    // after rot Y 90: local (u,w,d) → world roughly maps; shape was (y,z)
-  } else {
-    // after rot X -90
-  }
   mesh.castShadow = true;
   mesh.receiveShadow = true;
-  const name = (selectedObject.name || 'Shape') + '_Extruded';
-  const obj = { id: objectIdCounter++, name, type: 'extrusion', mesh, layerId: currentLayerId, color: selectedObject.color || '#5c7cfa' };
+  const obj = {
+    id: objectIdCounter++,
+    name: (src.name || 'Shape') + '_Extruded',
+    type: 'extrusion',
+    mesh: mesh,
+    layerId: currentLayerId,
+    color: src.color || '#5c7cfa'
+  };
   mesh.userData = { objData: obj };
   scene.add(mesh);
   objects.push(obj);
   selectObject(obj);
   updateObjectsList();
-  setStatus(`Extrude thành công theo trục ${ax.toUpperCase()}: ${height} m.`);
+  return true;
+}
+
+function extrudeOpenToSheet(src, worldPts, height, axis) {
+  const ax = (axis || 'z').toLowerCase();
+  const off = new THREE.Vector3(
+    ax === 'x' ? height : 0,
+    ax === 'y' ? height : 0,
+    ax === 'z' ? height : 0
+  );
+  const verts = [];
+  const indices = [];
+  worldPts.forEach((p, i) => {
+    verts.push(p.x, p.y, p.z);
+    verts.push(p.x + off.x, p.y + off.y, p.z + off.z);
+    if (i < worldPts.length - 1) {
+      const a = i * 2, b = a + 1, c = a + 2, d = a + 3;
+      indices.push(a, c, b, b, c, d);
+    }
+  });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+    color: src.color || '#5c7cfa', side: THREE.DoubleSide, roughness: 0.4, metalness: 0.05
+  }));
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  const obj = {
+    id: objectIdCounter++,
+    name: (src.name || 'Curve') + '_Sheet',
+    type: 'sheet',
+    mesh: mesh,
+    layerId: currentLayerId,
+    color: src.color || '#5c7cfa'
+  };
+  mesh.userData = { objData: obj };
+  scene.add(mesh); objects.push(obj); selectObject(obj); updateObjectsList();
+  return true;
+}
+
+/** Rhino-like PlanarSrf: create planar surface from closed curve(s) or multiple coplanar wires */
+function planarSrfFromSelection() {
+  const list = (selectedObjects && selectedObjects.length)
+    ? selectedObjects.slice()
+    : (selectedObject ? [selectedObject] : []);
+  if (!list.length) {
+    showModal('PLANARSRF', 'Chọn 1 đường kín hoặc nhiều wire đồng phẳng rồi gõ PLANARSRF.');
+    return;
+  }
+  // Collect all points from selected curves
+  let allPts = [];
+  list.forEach(o => {
+    const pts = vcadGetOutlinePoints(o);
+    if (pts.length) allPts = allPts.concat(pts);
+  });
+  if (allPts.length < 3) {
+    showModal('PLANARSRF', 'Không đủ điểm để tạo mặt phẳng.');
+    return;
+  }
+  // If single closed curve — use it as outer loop
+  let outline = vcadGetOutlinePoints(list[0]);
+  if (list.length === 1) {
+    if (!vcadIsClosedContour(outline) && !list[0].closed) {
+      // try close
+      if (outline.length >= 3) outline = outline.concat([outline[0].clone()]);
+    }
+  } else {
+    // Multiple wires: take convex hull on XY as simple planar region
+    const xy = outline.map(p => ({ x: p.x, y: p.y, z: p.z, v: p }));
+    // Use all points from all curves
+    const pts2 = [];
+    list.forEach(o => vcadGetOutlinePoints(o).forEach(p => pts2.push(p)));
+    outline = convexHullXY(pts2);
+  }
+  if (outline.length < 3) {
+    showModal('PLANARSRF', 'Không tạo được biên mặt.');
+    return;
+  }
+  if (outline[0].distanceTo(outline[outline.length - 1]) > 1e-6) {
+    outline = outline.concat([outline[0].clone()]);
+  }
+  const shape = new THREE.Shape();
+  outline.forEach((p, i) => {
+    if (i === 0) shape.moveTo(p.x, p.y); else shape.lineTo(p.x, p.y);
+  });
+  shape.closePath();
+  const geom = new THREE.ShapeGeometry(shape, 32);
+  const mesh = new THREE.Mesh(geom, new THREE.MeshStandardMaterial({
+    color: '#74c0fc', side: THREE.DoubleSide, transparent: true, opacity: 0.75, roughness: 0.4
+  }));
+  mesh.position.z = outline[0].z;
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  const obj = {
+    id: objectIdCounter++,
+    name: 'Srf_' + String(objectIdCounter).padStart(2, '0'),
+    type: 'surface',
+    mesh: mesh,
+    layerId: currentLayerId,
+    color: '#74c0fc',
+    shapePoints: outline.map(p => [p.x, p.y, p.z]),
+    closed: true
+  };
+  mesh.userData = { objData: obj, shapePoints: obj.shapePoints, closed: true };
+  scene.add(mesh); objects.push(obj); selectObject(obj); updateObjectsList();
+  setStatus('PLANARSRF: đã tạo mặt phẳng từ ' + list.length + ' wire/curve.');
+}
+
+function convexHullXY(points) {
+  if (!points || points.length < 3) return points || [];
+  const pts = points.map(p => ({ x: p.x, y: p.y, z: p.z, ref: p }));
+  pts.sort((a, b) => a.x === b.x ? a.y - b.y : a.x - b.x);
+  function cross(o, a, b) { return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x); }
+  const lower = [];
+  pts.forEach(p => {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+    lower.push(p);
+  });
+  const upper = [];
+  for (let i = pts.length - 1; i >= 0; i--) {
+    const p = pts[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+    upper.push(p);
+  }
+  upper.pop(); lower.pop();
+  const hull = lower.concat(upper);
+  return hull.map(h => new THREE.Vector3(h.x, h.y, h.z));
 }
 
 /** Offset 2D closed contour outward/inward (simple polygon offset via normals). Rhino-like basic Offset. */
@@ -1759,6 +1963,9 @@ function updateActualDimensions(objData) {
   document.getElementById('prop-dim-z').value=is2D?'0.000':size.z.toFixed(3);
 }
 function selectObject(objData) {
+  if (window.__vcadSelecting) return;
+  window.__vcadSelecting = true;
+  try {
   selectedObject = objData;
   if(objData && !preserveMultiSelection) selectedObjects=[objData];
   if (objData) {
@@ -1789,11 +1996,11 @@ function selectObject(objData) {
     document.getElementById('sel-tag').textContent = 'Chưa chọn đối tượng';
     ['prop-name', 'prop-px', 'prop-py', 'prop-pz', 'prop-rx', 'prop-ry', 'prop-rz', 'prop-sx', 'prop-sy', 'prop-sz', 'prop-color', 'prop-apply'].forEach(id => {
       const el = document.getElementById(id);
-      el.disabled = true;
-      if (id !== 'prop-apply') el.value = '';
+      if (el) { el.disabled = true; if (id !== 'prop-apply') el.value = ''; }
     });
   }
   updateObjectsList();
+  } finally { window.__vcadSelecting = false; }
 }
 
 function updateObjectsList() {
@@ -1951,78 +2158,162 @@ function setupEvents() {
 
   let dragObject=false, dragStartWorld=new THREE.Vector3(), dragStartPos=new THREE.Vector3();
   const xyPlane=new THREE.Plane(new THREE.Vector3(0,0,1),0);
+  let __snapFrame=0;
   function pointerWorld(e, plane=xyPlane){
     const r=canvas.getBoundingClientRect();
+    if (!r.width || !r.height) return null;
     mouse.x=((e.clientX-r.left)/r.width)*2-1;
     mouse.y=-((e.clientY-r.top)/r.height)*2+1;
     raycaster.setFromCamera(mouse,camera);
-    const snapEnabled = ['snap-endpoint','snap-midpoint','snap-center','snap-face'].some(id=>document.getElementById(id)?.checked);
-    let best=null, bestPx=22, bestKind='';
-    if(snapEnabled){
-      const candidates=[];
-      objects.filter(o=>o.mesh?.visible&&!o.hiddenByGroup).forEach(o=>{
-        // Prefer shapePoints (2D CAD curves)
-        let worldPts=[];
-        if(Array.isArray(o.shapePoints)&&o.shapePoints.length>=1){
-          o.mesh.updateMatrixWorld(true);
-          worldPts=o.shapePoints.map(p=>{
-            const v=new THREE.Vector3(Number(p[0])||0,Number(p[1])||0,Number(p[2])||0);
-            return v.applyMatrix4(o.mesh.matrixWorld);
-          });
-        } else {
-          const g=o.mesh.geometry; const attr=g&&g.attributes&&g.attributes.position;
-          if(attr){
-            const step=Math.max(1, Math.floor(attr.count>200?attr.count/80:1));
-            for(let i=0;i<attr.count;i+=step){
-              const v=new THREE.Vector3().fromBufferAttribute(attr,i);
-              o.mesh.localToWorld(v); worldPts.push(v);
+    const wantEnd = !!document.getElementById('snap-endpoint')?.checked;
+    const wantMid = !!document.getElementById('snap-midpoint')?.checked;
+    const wantNear = !!document.getElementById('snap-near')?.checked;
+    const wantCen = !!document.getElementById('snap-center')?.checked;
+    const wantFace = !!document.getElementById('snap-face')?.checked;
+    const snapEnabled = wantEnd || wantMid || wantNear || wantCen || wantFace;
+    // Ngưỡng pixel trên màn hình (kiểu CAD)
+    const PX = { Endpoint: 28, Midpoint: 26, Near: 18, Center: 26, Face: 16 };
+    let best=null, bestPx=999, bestKind='';
+
+    // Điểm con trỏ trên mặt phẳng XY (dùng cho Near)
+    const planeHit = new THREE.Vector3();
+    const hasPlane = !!raycaster.ray.intersectPlane(plane, planeHit);
+
+    function consider(pt, kind) {
+      if (!pt) return;
+      const v = pt.clone().project(camera);
+      if (v.z < -1 || v.z > 1) return;
+      const sx = r.left + (v.x + 1) * r.width / 2;
+      const sy = r.top + (1 - v.y) * r.height / 2;
+      const d = Math.hypot(sx - e.clientX, sy - e.clientY);
+      const lim = PX[kind] || 22;
+      // Ưu tiên Endpoint > Midpoint > Center > Near > Face khi khoảng cách gần tương đương
+      const prio = { Endpoint: 0, Midpoint: 1, Center: 2, Near: 3, Face: 4 };
+      const better = d < bestPx - 0.5 || (Math.abs(d - bestPx) <= 0.5 && (prio[kind]||9) < (prio[bestKind]||9));
+      if (d <= lim && better) { bestPx = d; best = pt.clone(); bestKind = kind; }
+    }
+
+    function worldPolyOf(o) {
+      if (!o || !o.mesh) return [];
+      o.mesh.updateMatrixWorld(true);
+      if (Array.isArray(o.shapePoints) && o.shapePoints.length >= 1) {
+        return o.shapePoints.map(p => {
+          const v = new THREE.Vector3(Number(p[0])||0, Number(p[1])||0, Number(p[2])||0);
+          return v.applyMatrix4(o.mesh.matrixWorld);
+        });
+      }
+      const g = o.mesh.geometry;
+      const attr = g && g.attributes && g.attributes.position;
+      if (!attr || attr.count < 1) return [];
+      const pts = [];
+      for (let i = 0; i < attr.count; i++) {
+        const v = new THREE.Vector3().fromBufferAttribute(attr, i);
+        o.mesh.localToWorld(v);
+        pts.push(v);
+      }
+      return pts;
+    }
+
+    function closestOnSegment(a, b, p) {
+      const ab = new THREE.Vector3().subVectors(b, a);
+      const len2 = ab.lengthSq();
+      if (len2 < 1e-16) return a.clone();
+      let t = new THREE.Vector3().subVectors(p, a).dot(ab) / len2;
+      t = Math.max(0, Math.min(1, t));
+      // Near = thân đoạn, không tính đúng 2 đầu (đầu thuộc Endpoint)
+      if (t < 0.02 || t > 0.98) return null;
+      return a.clone().addScaledVector(ab, t);
+    }
+
+    if (snapEnabled) {
+      // --- Điểm đang vẽ (polyline/line/spline hiện tại) ---
+      if (typeof drawMode !== 'undefined' && drawMode && Array.isArray(drawPoints) && drawPoints.length) {
+        if (wantEnd) {
+          drawPoints.forEach(p => consider(p, 'Endpoint'));
+        }
+        if (wantMid && drawPoints.length >= 2) {
+          for (let i = 0; i < drawPoints.length - 1; i++) {
+            consider(drawPoints[i].clone().add(drawPoints[i+1]).multiplyScalar(0.5), 'Midpoint');
+          }
+        }
+        if (wantNear && hasPlane && drawPoints.length >= 2) {
+          for (let i = 0; i < drawPoints.length - 1; i++) {
+            const n = closestOnSegment(drawPoints[i], drawPoints[i+1], planeHit);
+            if (n) consider(n, 'Near');
+          }
+        }
+      }
+
+      // --- Đối tượng trong scene ---
+      objects.filter(o => o.mesh && o.mesh.visible && !o.hiddenByGroup).forEach(o => {
+        let pts = worldPolyOf(o);
+        if (pts.length < 1) return;
+        // Bỏ điểm đóng trùng
+        if (o.closed && pts.length > 1 && pts[0].distanceTo(pts[pts.length-1]) < 1e-6) {
+          pts = pts.slice(0, -1);
+        }
+        const n = pts.length;
+        if (wantEnd && n >= 1) {
+          if (o.closed) {
+            // Polyline kín: mỗi đỉnh là endpoint của cạnh
+            pts.forEach(p => consider(p, 'Endpoint'));
+          } else {
+            // Đường hở: chỉ 2 đầu (CAD endpoint)
+            consider(pts[0], 'Endpoint');
+            if (n > 1) consider(pts[n-1], 'Endpoint');
+            // Polyline nhiều đoạn: các đỉnh giữa cũng hay dùng làm endpoint trong CAD
+            if (String(o.type||'').includes('poly') || o.type === 'spline') {
+              for (let i = 1; i < n - 1; i++) consider(pts[i], 'Endpoint');
             }
           }
         }
-        if(document.getElementById('snap-endpoint')?.checked){
-          worldPts.forEach(v=>candidates.push({p:v.clone(),kind:'Endpoint'}));
-          if(o.closed&&worldPts.length) candidates.push({p:worldPts[0].clone(),kind:'Endpoint'});
-        }
-        if(document.getElementById('snap-midpoint')?.checked && worldPts.length>=2){
-          for(let i=0;i<worldPts.length-1;i++){
-            candidates.push({p:worldPts[i].clone().add(worldPts[i+1]).multiplyScalar(.5),kind:'Midpoint'});
+        if (wantMid && n >= 2) {
+          const segs = o.closed ? n : n - 1;
+          for (let i = 0; i < segs; i++) {
+            const a = pts[i], b = pts[(i+1) % n];
+            consider(a.clone().add(b).multiplyScalar(0.5), 'Midpoint');
           }
         }
-        if(document.getElementById('snap-center')?.checked){
-          const box=new THREE.Box3().setFromObject(o.mesh);
-          if(!box.isEmpty()) candidates.push({p:box.getCenter(new THREE.Vector3()),kind:'Center'});
+        if (wantNear && hasPlane && n >= 2) {
+          const segs = o.closed ? n : n - 1;
+          for (let i = 0; i < segs; i++) {
+            const npt = closestOnSegment(pts[i], pts[(i+1) % n], planeHit);
+            if (npt) consider(npt, 'Near');
+          }
+        }
+        if (wantCen) {
+          const box = new THREE.Box3().setFromObject(o.mesh);
+          if (!box.isEmpty()) consider(box.getCenter(new THREE.Vector3()), 'Center');
         }
       });
-      for(const c of candidates){
-        const v=c.p.clone().project(camera);
-        if(v.z<-1||v.z>1) continue;
-        const sx=r.left+(v.x+1)*r.width/2, sy=r.top+(1-v.y)*r.height/2;
-        const d=Math.hypot(sx-e.clientX,sy-e.clientY);
-        if(d<bestPx){bestPx=d;best=c.p.clone();bestKind=c.kind;}
-      }
     }
-    const hits=raycaster.intersectObjects(objects.filter(o=>o.mesh?.visible&&!o.hiddenByGroup).map(o=>o.mesh),true);
-    if(!best && hits.length && document.getElementById('snap-face')?.checked){
-      best=hits[0].point.clone(); bestKind='Face';
+
+    if (!best && wantFace) {
+      const hits = raycaster.intersectObjects(
+        objects.filter(o => o.mesh && o.mesh.visible && !o.hiddenByGroup).map(o => o.mesh), true
+      );
+      if (hits.length) { best = hits[0].point.clone(); bestKind = 'Face'; bestPx = 0; }
     }
-    const marker=document.getElementById('snap-marker');
-    if(best){
-      lastSnapKind=bestKind;
-      if(marker){
-        const v=best.clone().project(camera);
-        marker.style.left=((v.x+1)*r.width/2)+'px';
-        marker.style.top=((1-v.y)*r.height/2)+'px';
-        marker.style.display='block';
-        marker.dataset.label=bestKind;
-        marker.title=bestKind;
+
+    const marker = document.getElementById('snap-marker');
+    if (best) {
+      lastSnapKind = bestKind;
+      if (marker) {
+        const v = best.clone().project(camera);
+        marker.style.left = ((v.x + 1) * r.width / 2) + 'px';
+        marker.style.top = ((1 - v.y) * r.height / 2) + 'px';
+        marker.style.display = 'block';
+        marker.dataset.label = bestKind;
+        marker.title = bestKind;
       }
-      const st=document.getElementById('snap-status'); if(st) st.textContent=bestKind.toUpperCase();
+      const st = document.getElementById('snap-status');
+      if (st) st.textContent = bestKind.toUpperCase();
       return best;
     }
-    if(marker){ marker.style.display='none'; marker.dataset.label=''; }
-    const st=document.getElementById('snap-status'); if(st) st.textContent='ON';
-    const out=new THREE.Vector3();
-    return raycaster.ray.intersectPlane(plane,out)?out:null;
+    if (marker) { marker.style.display = 'none'; marker.dataset.label = ''; }
+    const st = document.getElementById('snap-status');
+    if (st) st.textContent = snapEnabled ? 'ON' : 'OFF';
+    return hasPlane ? planeHit.clone() : null;
   }
   canvas.addEventListener('pointerdown',e=>{
     if(e.button!==0 && e.button!==2)return;
@@ -2042,9 +2333,9 @@ function setupEvents() {
       const world=pointerWorld(e);if(!world)return;
       let p=world.clone();
       if(drawMode!=='line'&&drawMode!=='polyline'&&drawMode!=='spline')p.z=0;
-      if((e.shiftKey||orthoEnabled)&&drawPoints.length){const prev=drawPoints[drawPoints.length-1],dx=p.x-prev.x,dy=p.y-prev.y,dz=p.z-prev.z;if(Math.abs(dx)>=Math.abs(dy)){p.y=prev.y;}else{p.x=prev.x;}if(drawMode==='line'||drawMode==='polyline'){if(Math.abs(dz)>Math.max(Math.abs(dx),Math.abs(dy))) {p.x=prev.x;p.y=prev.y;} else p.z=prev.z;}}
+      if((e.shiftKey||orthoEnabled)&&drawPoints.length&&!lastSnapKind){const prev=drawPoints[drawPoints.length-1],dx=p.x-prev.x,dy=p.y-prev.y,dz=p.z-prev.z;if(Math.abs(dx)>=Math.abs(dy)){p.y=prev.y;}else{p.x=prev.x;}if(drawMode==='line'||drawMode==='polyline'||drawMode==='spline'){if(Math.abs(dz)>Math.max(Math.abs(dx),Math.abs(dy))) {p.x=prev.x;p.y=prev.y;} else p.z=prev.z;}}
       if(drawMode==='rectangle'||drawMode==='circle'){if(drawPoints.length===0)drawPoints.push(p);else{drawPoints.push(p);finishDraw();}}
-      else if(drawMode==='line'){drawPoints.push(p);if(drawPoints.length>=2)finishDraw();}
+      else if(drawMode==='line'){drawPoints.push(p);if(drawPoints.length>=2){finishDraw(true);/* keep LINE active until Enter/Space/Esc */setDrawMode('line');setStatus('LINE — điểm tiếp theo · Enter/Space kết thúc · Esc hủy.');}}
       else if(drawMode==='arc'){drawPoints.push(p);if(drawPoints.length>=3){makeArcFromPoints(drawPoints);cancelDraw();}else redrawPreview();}
       else{
         if((drawMode==='polyline'||drawMode==='spline')&&drawPoints.length>=3&&p.distanceTo(drawPoints[0])<Math.max(0.15,0.02*drawPoints[0].distanceTo(p)+0.05)){
@@ -2056,6 +2347,21 @@ function setupEvents() {
     }
     // --- Pending CAD commands: chọn lệnh trước, rồi chọn đối tượng ---
     if(pendingCmd && e.button===0){
+
+      if(pendingCmd.type==='dim'){
+        const world=pointerWorld(e);
+        if(!world) return;
+        if(pendingCmd.step===1){
+          pendingCmd.pts=[world.clone()];
+          pendingCmd.step=2;
+          setStatus((pendingCmd.is3d?'DIM 3D':'DIM 2D')+' — Chọn điểm thứ 2 · Esc hủy.');
+        } else {
+          finishDimFromPoints(pendingCmd.pts[0], world, pendingCmd.is3d);
+          pendingCmd = { type: 'dim', step: 1, pts: [], is3d: !!pendingCmd.is3d };
+          setStatus((pendingCmd.is3d ? 'DIM 3D' : 'DIM 2D') + ' — tiếp tục điểm 1, hoặc Esc thoát.');
+        }
+        return;
+      }
       if(pendingCmd.type==='join'){
         if(hitObj && vcadIsCurve2d(hitObj)){
           if(!pendingCmd.picks.find(x=>x.id===hitObj.id)) pendingCmd.picks.push(hitObj);
@@ -2081,7 +2387,7 @@ function setupEvents() {
           setSelectionMany([hitObj], hitObj);
           const h = pendingCmd.preHeight != null ? pendingCmd.preHeight : (Number(document.getElementById('draw-height')?.value) || 2);
           const ax = pendingCmd.preAxis || document.getElementById('extrude-axis')?.value || 'z';
-          commandModal('EXTRUDE','Chiều cao đùn và trục (vd: 2 Z hoặc 1.5 X). Đường hở → tấm, kín → khối.', h+' '+ax, val=>{
+          commandModal('EXTRUDE','Height (m) + Axis (X/Y/Z). VD: 2 Z · Open curve → Sheet · Closed → Solid', h+' '+ax, val=>{
             if(val===null||val===true){pendingCmd=null;return;}
             const parts=String(val).trim().split(/[\s,;]+/).filter(Boolean);
             const hh=Number(parts[0]); const axis=(parts[1]||ax).toLowerCase();
@@ -2216,7 +2522,17 @@ function setupEvents() {
       }
       if(currentMode==='move' && !(e.ctrlKey||e.metaKey)){
         const world=pointerWorld(e);
-        if(world){dragObject=true;controls.enabled=false;canvas.setPointerCapture(e.pointerId);dragStartWorld=world.clone();dragStartPos=hitObj.mesh.position.clone();dragStartPositions=new Map(selectedObjects.map(o=>[o,o.mesh.position.clone()]));}
+        if(world){
+          dragObject=true;
+          controls.enabled=false;
+          canvas.setPointerCapture(e.pointerId);
+          dragStartWorld=world.clone();
+          const targets=selectedObjects.length?selectedObjects:[hitObj];
+          if(!targets.includes(hitObj)) targets.push(hitObj);
+          dragStartPositions=new Map(targets.map(o=>[o,o.mesh.position.clone()]));
+          dragStartPos=hitObj.mesh.position.clone();
+          window.__vcadDragPlaneZ = world.z;
+        }
       }
     }else if(!e.ctrlKey&&!e.metaKey)setSelectionMany([],null);
   });
@@ -2227,7 +2543,17 @@ function setupEvents() {
       const cd=document.getElementById('coords-display'); if(cd) cd.textContent=label;
       const cc=document.getElementById('cmd-coords'); if(cc) cc.textContent=label;
       // Khoảng cách tạm khi đang vẽ (kiểu Rhino)
-      if(drawMode && drawPoints.length){
+      if(pendingCmd && pendingCmd.type==='dim' && pendingCmd.step===2 && pendingCmd.pts[0] && world){
+      if(previewLine){scene.remove(previewLine);previewLine.geometry.dispose();previewLine=null;}
+      const a=pendingCmd.pts[0].clone();
+      const b=world.clone();
+      if(!pendingCmd.is3d){a.z=0.03;b.z=0.03;}
+      previewLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints([a,b]), new THREE.LineBasicMaterial({color: pendingCmd.is3d?0xff922b:0xffd166}));
+      scene.add(previewLine);
+      const pr=document.getElementById('cmd-prompt');
+      if(pr) pr.textContent=(pendingCmd.is3d?'DIM 3D':'DIM 2D')+' — L='+a.distanceTo(b).toFixed(3)+' m · click điểm 2';
+    }
+    if(drawMode && drawPoints.length){
         const prev=drawPoints[drawPoints.length-1];
         const dist=prev.distanceTo(world);
         const pr=document.getElementById('cmd-prompt');
@@ -2242,15 +2568,15 @@ function setupEvents() {
     if(rotateObjectDrag){
       const dx=e.clientX-rotateDragLast.x,dy=e.clientY-rotateDragLast.y;
       const targets=selectedObjects.length?selectedObjects:(selectedObject?[selectedObject]:[]);
-      targets.forEach(o=>{if(o.type!=='group'){o.mesh.rotation.z+=dx*0.01;o.mesh.rotation.x+=dy*0.01;}});
+      targets.forEach(o=>{if(o&&o.mesh&&o.type!=='group'){o.mesh.rotation.z+=dx*0.01;o.mesh.rotation.x+=dy*0.01;}});
       rotateDragLast={x:e.clientX,y:e.clientY};
-      if(selectedObject){gumballGroup.position.copy(selectedObject.mesh.position);refreshProperties();}
+      if(selectedObject&&gumballGroup) gumballGroup.position.copy(selectedObject.mesh.position);
+      // không refreshProperties mỗi frame (gây khựng)
       return;
     }
     if(scaleObjectDrag){
       const factor=Math.max(0.01,Math.min(100,Math.exp((scaleDragLastY-e.clientY)*0.01)));
-      if(scaleDragStart)scaleDragStart.forEach((start,obj)=>obj.mesh.scale.set(Math.max(0.001,start.x*factor),Math.max(0.001,start.y*factor),Math.max(0.001,start.z*factor)));
-      if(selectedObject)refreshProperties();
+      if(scaleDragStart)scaleDragStart.forEach((start,obj)=>{if(obj&&obj.mesh)obj.mesh.scale.set(Math.max(0.001,start.x*factor),Math.max(0.001,start.y*factor),Math.max(0.001,start.z*factor));});
       return;
     }
     if(polyEditMode&&polyEditDragging&&world){
@@ -2271,12 +2597,15 @@ function setupEvents() {
       }
       return;
     }
-    if(drawMode&&world){let p=world.clone();if(drawMode!=='line'&&drawMode!=='polyline'&&drawMode!=='spline')p.z=0;if((e.shiftKey||orthoEnabled)&&drawPoints.length){const prev=drawPoints[drawPoints.length-1],dx=p.x-prev.x,dy=p.y-prev.y,dz=p.z-prev.z;if(Math.abs(dx)>=Math.abs(dy))p.y=prev.y;else p.x=prev.x;if((drawMode==='line'||drawMode==='polyline')&&Math.abs(dz)>Math.max(Math.abs(dx),Math.abs(dy))){p.x=prev.x;p.y=prev.y;}else p.z=prev.z;}redrawPreview(p);return;}
+    if(drawMode&&world){let p=world.clone();if(drawMode!=='line'&&drawMode!=='polyline'&&drawMode!=='spline')p.z=0;if((e.shiftKey||orthoEnabled)&&drawPoints.length&&!lastSnapKind){const prev=drawPoints[drawPoints.length-1],dx=p.x-prev.x,dy=p.y-prev.y,dz=p.z-prev.z;if(Math.abs(dx)>=Math.abs(dy))p.y=prev.y;else p.x=prev.x;if((drawMode==='line'||drawMode==='polyline'||drawMode==='spline')&&Math.abs(dz)>Math.max(Math.abs(dx),Math.abs(dy))){p.x=prev.x;p.y=prev.y;}else p.z=prev.z;}redrawPreview(p);return;}
     if(dragObject&&world){
-      let dx=world.x-dragStartWorld.x,dy=world.y-dragStartWorld.y;
+      // Giữ cùng mặt phẳng kéo → không khựng / nhảy Z
+      const z0 = (typeof window.__vcadDragPlaneZ === 'number') ? window.__vcadDragPlaneZ : dragStartWorld.z;
+      const cur = world.clone(); cur.z = z0;
+      let dx=cur.x-dragStartWorld.x, dy=cur.y-dragStartWorld.y, dz=0;
       if(e.shiftKey||orthoEnabled){if(Math.abs(dx)>=Math.abs(dy))dy=0;else dx=0;}
       const starts=dragStartPositions||new Map([[selectedObject,dragStartPos]]);
-      starts.forEach((pos,obj)=>obj.mesh.position.set(pos.x+dx,pos.y+dy,pos.z));
+      starts.forEach((pos,obj)=>{ if(obj&&obj.mesh) obj.mesh.position.set(pos.x+dx, pos.y+dy, pos.z+dz); });
       if(selectedObject)gumballGroup.position.copy(selectedObject.mesh.position);
       refreshProperties();
     }
@@ -2289,7 +2618,7 @@ function setupEvents() {
       if(selectedObject)selectObject(selectedObject);
       return;
     }
-    if(dragObject||rotateObjectDrag||scaleObjectDrag){dragObject=false;rotateObjectDrag=false;scaleObjectDrag=false;scaleDragStart=null;controls.enabled=true;if(selectedObject)selectObject(selectedObject);if(selectedObjects.length>1)updateMultiProperties();}
+    if(dragObject||rotateObjectDrag||scaleObjectDrag){const wasDrag=dragObject||rotateObjectDrag||scaleObjectDrag;dragObject=false;rotateObjectDrag=false;scaleObjectDrag=false;scaleDragStart=null;controls.enabled=true;window.__vcadDragPlaneZ=null;if(wasDrag&&selectedObject){try{gumballGroup.position.copy(selectedObject.mesh.position);refreshProperties();}catch(_){}}if(selectedObjects.length>1)try{updateMultiProperties();}catch(_){}}
   };
   canvas.addEventListener('pointerup',endPointer);canvas.addEventListener('pointercancel',endPointer);
   canvas.addEventListener('contextmenu',e=>{
@@ -2330,7 +2659,7 @@ function setupEvents() {
     if(e.key==='Enter'&&editCurveMode==='trim'&&trimCutters.length){window.__vcadTrimPhase=2;setStatus('TRIM — Bước 2: click phần đường cần cắt bỏ ('+trimCutters.length+' cutting edge). Esc thoát.');return;}
     if(e.key==='Enter'&&pendingCmd&&pendingCmd.type==='join'){e.preventDefault();finishPendingJoin();return;}
     if((e.key==='c'||e.key==='C')&&(drawMode==='polyline'||drawMode==='spline')&&drawPoints.length>=3&&!inField){e.preventDefault();window.__vcadClosePoly=true;finishDraw();setStatus('Đã đóng Polyline (Closed). Có thể Extrude.');return;}
-    if(e.key==='Enter'&&(drawMode==='polyline'||drawMode==='spline')&&(!inField||!(e.target.value||'').trim())){e.preventDefault();finishDraw();return;}
+    if(e.key==='Enter'&&drawMode&&(!inField||!(e.target.value||'').trim())){e.preventDefault();finishDraw();return;}
     // Delete / Backspace xóa đối tượng (hoặc đỉnh đang chọn trong PointsOn)
     if((e.key==='Delete'||e.key==='Backspace')&&!inField){
       e.preventDefault();
@@ -2346,7 +2675,8 @@ function setupEvents() {
     if((e.code==='Space'||e.key===' ')&&!inField){
       e.preventDefault();
       e.stopPropagation();
-      if((drawMode==='polyline'||drawMode==='spline')&&drawPoints.length>=2){finishDraw();return;}
+      if(drawMode&&drawPoints.length>=2){finishDraw();return;}
+      if(drawMode){cancelDraw();setStatus('Đã thoát lệnh vẽ.');return;}
       if(drawMode){return;}
       const rep = lastCommandRaw || lastCommand;
       if(rep){
@@ -2367,7 +2697,12 @@ function setupEvents() {
       document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentMode = btn.dataset.mode;
-      setStatus(`Đang chọn chế độ: ${currentMode.toUpperCase()}`);
+      const cvs=document.getElementById('view-canvas');
+      if(cvs){cvs.classList.remove('vcad-draw','vcad-move','vcad-rotate');
+        if(currentMode==='move')cvs.classList.add('vcad-move');
+        else if(currentMode==='rotate')cvs.classList.add('vcad-rotate');
+      }
+      setStatus(currentMode==='select'?'SELECT — click chọn đối tượng.':'Đang chọn chế độ: '+currentMode.toUpperCase());
     };
   });
 
@@ -2459,6 +2794,10 @@ function setupEvents() {
   document.getElementById('btn-close-pl')?.addEventListener('click', () => executeCommand('close'));
   document.getElementById('btn-explode')?.addEventListener('click', () => executeCommand('explode'));
   document.getElementById('btn-length')?.addEventListener('click', () => executeCommand('length'));
+  document.getElementById('btn-dim-linear')?.addEventListener('click', () => executeCommand('dim'));
+  document.getElementById('btn-dim-aligned')?.addEventListener('click', () => executeCommand('dim3d'));
+  document.getElementById('btn-delete-all')?.addEventListener('click', () => executeCommand('deleteall'));
+
   document.getElementById('btn-fillet')?.addEventListener('click', () => executeCommand('fillet'));
   document.getElementById('btn-join')?.addEventListener('click', () => executeCommand('join'));
   document.getElementById('btn-extrude').onclick = () => executeCommand('extrude');
@@ -2496,7 +2835,7 @@ function setupEvents() {
     if(e.key==='Shift'){
       const val=cmdInput.value.trim().toLowerCase();
       if(val){
-        const aliases={b:'box',rec:'rectangle',rect:'rectangle',l:'line',pl:'polyline',c:'circle',cr:'circle',cd:'circle',mirron:'mirror',mi:'mirror',ex:'extrude',del:'delete'};
+        const aliases={planarsrf:'planarsrf',planesrf:'planarsrf',srf:'planarsrf',b:'box',rec:'rectangle',rect:'rectangle',l:'line',pl:'polyline',c:'circle',cr:'circle',cd:'circle',mirron:'mirror',mi:'mirror',ex:'extrude',del:'delete'};
         const first=val.split(/[\\s,;]+/)[0];
         const full=aliases[first]||AVAILABLE_COMMANDS.map(x=>x.cmd.split(' / ')[0]).find(x=>x.startsWith(first));
         if(full){cmdInput.value=full+(val.includes(' ')?val.slice(first.length):'');cmdInput.setSelectionRange(cmdInput.value.length,cmdInput.value.length);autocompleteList.style.display='none';}
@@ -3076,6 +3415,19 @@ function runExtrudeOnTarget(target, height, axis) {
   extrudeSelected(height, axis);
 }
 
+function deleteAllObjects() {
+  if (!objects.length) { setStatus('Không có đối tượng để xóa.'); return; }
+  if (!confirm('Xóa TẤT CẢ ' + objects.length + ' đối tượng?')) return;
+  objects.forEach(o => {
+    if (o.mesh) { scene.remove(o.mesh); if (o.mesh.geometry) o.mesh.geometry.dispose(); }
+  });
+  objects = [];
+  selectedObject = null;
+  selectedObjects = [];
+  if (typeof endPolyEditMode === 'function') endPolyEditMode();
+  updateObjectsList();
+  setStatus('Đã xóa tất cả đối tượng.');
+}
 function deleteSelectedObjects() {
   const targets = (selectedObjects && selectedObjects.length) ? [...selectedObjects] : (selectedObject ? [selectedObject] : []);
   if (!targets.length) {
@@ -3108,7 +3460,7 @@ function executeCommand(rawCmd) {
   const normalized=rawCmd.trim().toLowerCase();
   const parts=normalized.split(/[\s,;]+/).filter(Boolean);
   let cmd=parts.shift()||'',args=parts;
-  const aliases={b:'box',rec:'rectangle',rect:'rectangle',l:'line',pl:'polyline',c:'circle',cr:'circle',cd:'circle',a:'arc',dim:'dim',d:'dim',mirron:'mirror',mi:'mirror',m:'move',ro:'rotate',sc:'scale',ex:'extrude',del:'delete',u:'union',dif:'difference',inter:'intersection',imp:'import',o:'offset',off:'offset',cp:'copy',co:'copy',tr:'trim',ext:'extend',po:'pointson',pts:'pointson',cl:'close',exp:'explode',len:'length',f:'fillet',fil:'fillet',j:'join',spl:'spline',s:'spline'};
+  const aliases={planarsrf:'planarsrf',planesrf:'planarsrf',srf:'planarsrf',b:'box',rec:'rectangle',rect:'rectangle',l:'line',pl:'polyline',c:'circle',cr:'circle',cd:'circle',a:'arc',dim:'dim',d:'dim',dim3d:'dim3d',d3:'dim3d',dim3:'dim3d',mirron:'mirror',mi:'mirror',m:'move',ro:'rotate',sc:'scale',ex:'extrude',del:'delete',deleteall:'deleteall',delall:'deleteall',clear:'deleteall',u:'union',dif:'difference',inter:'intersection',imp:'import',o:'offset',off:'offset',cp:'copy',co:'copy',tr:'trim',ext:'extend',po:'pointson',pts:'pointson',cl:'close',exp:'explode',len:'length',f:'fillet',fil:'fillet',j:'join',spl:'spline',s:'spline'};
   let alias=cmd;
   if(cmd==='c'&&['r','d'].includes(args[0])){alias=args[0]==='d'?'cd':'cr';args=args.slice(1);cmd='circle';}
   else cmd=aliases[cmd]||cmd;
@@ -3171,6 +3523,7 @@ function executeCommand(rawCmd) {
     case 'close': closeSelectedPolyline(); break;
     case 'explode': explodeSelected(); break;
     case 'length': lengthSelected(); break;
+    case 'planarsrf': case 'planesrf': case 'srf': planarSrfFromSelection(); break;
     case 'fillet':{
       const r=validNums?nums[0]:Number(document.getElementById('fillet-radius')?.value);
       if(selectedObject && Number.isFinite(r)&&r>0){filletSelected(r);break;}
@@ -3180,7 +3533,8 @@ function executeCommand(rawCmd) {
     }
     case 'join': startJoinCmd(); break;
     case 'spline': setDrawMode('spline'); break;
-    case 'dim': startDimensionCommand();break;
+    case 'dim': case 'dim2d': startDimensionCommand();break;
+    case 'dim3d': startDimensionCommand(true);break;
     case 'import': document.getElementById('file-append-input').click();break;
     case 'rotate':{
       if(validNums && nums.length){ if(!selectedObject){showModal('ROTATE','Chọn đối tượng trước.');break;} const deg=nums[0],axis=(args[1]||'z').toLowerCase();const rad=THREE.MathUtils.degToRad(deg);if(axis==='x')selectedObject.mesh.rotation.x+=rad;else if(axis==='y')selectedObject.mesh.rotation.y+=rad;else selectedObject.mesh.rotation.z+=rad;refreshProperties();setStatus(`ROTATE: xoay ${deg}° quanh trục ${axis.toUpperCase()}.`);break;}
@@ -3196,6 +3550,7 @@ function executeCommand(rawCmd) {
     case 'top':setViewport('top');break;case 'front':setViewport('front');break;case 'right':setViewport('right');break;case 'perspective':setViewport('persp');break;
     case 'wireframe':case 'shaded':case 'ghosted':setDisplayMode(cmd);break;
     case 'delete':deleteSelectedObjects();break;
+    case 'deleteall': case 'clear': deleteAllObjects(); break;
     case 'mirror':{
       if(selectedObject){
         commandModal('MIRROR','Nhập mặt phẳng: X,0 hoặc Y,0 hoặc Z,0','X,0',val=>{
@@ -3234,18 +3589,78 @@ function executeCommand(rawCmd) {
     default:showModal('Không nhận diện lệnh',`Không tìm thấy "${rawCmd}". Thử BOX, REC, LINE, C, CR, CD, PL, EXTRUDE, MIRROR hoặc HELP.`);
   }
 }
-function startDimensionCommand(){
-  commandModal('DIM','Nhập chiều dài kích thước (m) để tạo ghi chú nhanh. Để đo trực tiếp theo 2 điểm, dùng DIM pick trong bản nâng cấp tiếp theo.','10',val=>{
-    if(val===null||val===true)return;const d=Number(String(val).trim());if(!Number.isFinite(d)||d<=0){showModal('DIM','Chiều dài phải lớn hơn 0.');return;}
-    const midX=d/2;const pts=[new THREE.Vector3(0,0,0.03),new THREE.Vector3(d,0,0.03)];
-    const geom=new THREE.BufferGeometry().setFromPoints(pts);const mesh=new THREE.Line(geom,new THREE.LineBasicMaterial({color:'#ffcc66'}));
-    const obj={id:objectIdCounter++,name:`Dim_${String(objectIdCounter).padStart(2,'0')}`,type:'dimension',mesh,layerId:currentLayerId,color:'#ffcc66',shapePoints:[[0,0],[d,0]],closed:false,dimensionValue:d};
-    mesh.userData={objData:obj};scene.add(mesh);objects.push(obj);
-    const canvas=document.createElement('canvas');canvas.width=256;canvas.height=64;const ctx=canvas.getContext('2d');ctx.fillStyle='#ffcc66';ctx.font='bold 34px Arial';ctx.textAlign='center';ctx.fillText(`${d.toFixed(2)} m`,128,44);
-    const tex=new THREE.CanvasTexture(canvas);const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));sprite.scale.set(Math.max(1.2,d*.35),.3,1);sprite.position.set(midX,.25,.05);mesh.add(sprite);
-    selectObject(obj);updateObjectsList();setStatus(`DIM: đã tạo đường kích thước ${d} m.`);
-  });
+function startDimensionCommand(is3d){
+  lastCommandRaw = is3d ? 'dim3d' : 'dim';
+  lastCommand = lastCommandRaw;
+  pendingCmd = { type: 'dim', step: 1, pts: [], is3d: !!is3d };
+  setStatus((is3d?'DIM 3D':'DIM 2D') + ' — điểm 1 (OSNAP) · Esc hủy.');
 }
+function finishDimFromPoints(p1, p2, is3d) {
+  const a = p1.clone(), b = p2.clone();
+  if (!is3d) { a.z = 0.02; b.z = 0.02; }
+  const delta = new THREE.Vector3().subVectors(b, a);
+  const d = delta.length();
+  if (!(d > 1e-6)) { setStatus('DIM: khoảng cách quá nhỏ.'); return; }
+  const dir = delta.clone().normalize();
+  const ref = Math.abs(dir.dot(new THREE.Vector3(0,0,1))) > 0.92 ? new THREE.Vector3(0,1,0) : new THREE.Vector3(0,0,1);
+  const n = new THREE.Vector3().crossVectors(dir, ref).normalize();
+  const off = Math.max(0.2, Math.min(d * 0.18, 2));
+  const a2 = a.clone().addScaledVector(n, off);
+  const b2 = b.clone().addScaledVector(n, off);
+  const color = is3d ? 0xff922b : 0xffcc66;
+  const mat = new THREE.LineBasicMaterial({ color });
+  const line = (p, q, m) => new THREE.Line(new THREE.BufferGeometry().setFromPoints([p, q]), m || mat);
+  const group = new THREE.Group();
+  group.add(line(a, a2));
+  group.add(line(b, b2));
+  group.add(line(a2, b2));
+  const tick = n.clone().multiplyScalar(Math.max(0.05, d * 0.03));
+  group.add(line(a2.clone().add(tick), a2.clone().sub(tick)));
+  group.add(line(b2.clone().add(tick), b2.clone().sub(tick)));
+  if (is3d) {
+    const mx = new THREE.Vector3(b.x, a.y, a.z);
+    const my = new THREE.Vector3(b.x, b.y, a.z);
+    group.add(line(a, mx, new THREE.LineBasicMaterial({ color: 0xff6b6b })));
+    group.add(line(mx, my, new THREE.LineBasicMaterial({ color: 0x51cf66 })));
+    group.add(line(my, b, new THREE.LineBasicMaterial({ color: 0x4dabf7 })));
+  }
+  const mid = a2.clone().add(b2).multiplyScalar(0.5);
+  const cnv = document.createElement('canvas');
+  cnv.width = 512; cnv.height = is3d ? 128 : 72;
+  const ctx = cnv.getContext('2d');
+  ctx.fillStyle = is3d ? '#ff922b' : '#ffcc66';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 36px Arial';
+  ctx.fillText(d.toFixed(3) + ' m', 256, is3d ? 48 : 48);
+  if (is3d) {
+    ctx.font = '22px Arial';
+    ctx.fillText('dX ' + delta.x.toFixed(3) + '   dY ' + delta.y.toFixed(3) + '   dZ ' + delta.z.toFixed(3), 256, 92);
+  }
+  const tex = new THREE.CanvasTexture(cnv);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+  sprite.scale.set(Math.max(1.2, d * 0.35), is3d ? 0.45 : 0.28, 1);
+  sprite.position.copy(mid).addScaledVector(n, 0.12);
+  group.add(sprite);
+  group.userData = {};
+  const obj = {
+    id: objectIdCounter++,
+    name: (is3d ? 'Dim3D_' : 'Dim_') + String(objectIdCounter).padStart(2, '0'),
+    type: is3d ? 'dimension3d' : 'dimension',
+    mesh: group,
+    layerId: currentLayerId,
+    color: is3d ? '#ff922b' : '#ffcc66',
+    shapePoints: [[a.x,a.y,a.z],[b.x,b.y,b.z]],
+    closed: false,
+    dimensionValue: d
+  };
+  group.userData = { objData: obj };
+  group.traverse(ch => { ch.userData = group.userData; });
+  scene.add(group); objects.push(obj); selectObject(obj); updateObjectsList();
+  if (previewLine) { scene.remove(previewLine); previewLine.geometry.dispose(); previewLine = null; }
+  setStatus((is3d ? 'DIM 3D' : 'DIM 2D') + ': ' + d.toFixed(3) + ' m'
+    + (is3d ? '  (dX ' + delta.x.toFixed(3) + ', dY ' + delta.y.toFixed(3) + ', dZ ' + delta.z.toFixed(3) + ')' : ''));
+}
+
 function createLineByLength(length){
   if(!Number.isFinite(length)||length<=0){showModal('LINE','Chiều dài phải lớn hơn 0.');return;}
   const geom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0.02),new THREE.Vector3(length,0,0.02)]);
@@ -3468,7 +3883,7 @@ function initDockLayout(){
   document.querySelectorAll('[data-panel-show]').forEach(btn=>btn.addEventListener('click',()=>{const id=btn.dataset.panelShow;panels[id].classList.remove('vcad-panel-hidden','vcad-floating');panels[id].style.removeProperty('position');panels[id].style.removeProperty('z-index');body.classList.remove(id==='tools-panel'?'vcad-hide-tools':'vcad-hide-props');menu.classList.add('hidden');updatePanelMenu();apply();if(camera&&renderer)onWindowResize();}));
   document.addEventListener('click',e=>{if(!e.target.closest('#panel-menu-wrap'))menu?.classList.add('hidden');});
   document.getElementById('btn-reset-layout')?.addEventListener('click',()=>{['tools-panel','properties-panel'].forEach(id=>{const panel=panels[id];panel.classList.remove('vcad-panel-hidden','vcad-floating','vcad-drop-target');panel.style.removeProperty('position');panel.style.removeProperty('z-index');panel.style.removeProperty('left');panel.style.removeProperty('top');panel.style.removeProperty('right');panel.style.removeProperty('width');panel.style.removeProperty('height');});body.classList.remove('vcad-hide-tools','vcad-hide-props');const t=document.querySelector('[data-dock-target="tools-panel"]'),p=document.querySelector('[data-dock-target="properties-panel"]');if(t)t.value='left';if(p)p.value='right';body.style.setProperty('--tools-width','230px');body.style.setProperty('--props-width','260px');try{localStorage.removeItem('vcad-dock-layout');localStorage.removeItem('vcad-panel-widths');localStorage.removeItem('vcad-floating-tools-panel');localStorage.removeItem('vcad-floating-properties-panel');}catch(_){}apply();menu?.classList.add('hidden');updatePanelMenu();if(camera&&renderer)onWindowResize();});
-  ['snap-endpoint','snap-midpoint','snap-center','snap-face'].forEach(id=>document.getElementById(id)?.addEventListener('change',()=>{const any=['snap-endpoint','snap-midpoint','snap-center','snap-face'].some(k=>document.getElementById(k).checked);document.getElementById('snap-status').textContent=any?'ON':'OFF';if(!any)document.getElementById('snap-marker').style.display='none';}));
+  ['snap-endpoint','snap-midpoint','snap-near','snap-center','snap-face'].forEach(id=>document.getElementById(id)?.addEventListener('change',()=>{const any=['snap-endpoint','snap-midpoint','snap-near','snap-center','snap-face'].some(k=>document.getElementById(k)?.checked);const st=document.getElementById('snap-status');if(st)st.textContent=any?'ON':'OFF';if(!any){const m=document.getElementById('snap-marker');if(m)m.style.display='none';}}));
 }
 
 function initUiCustomization() {
@@ -3834,7 +4249,7 @@ function onWindowResize() {
 
 function animate() {
   requestAnimationFrame(animate);
-  controls.update();
+  if (controls && controls.enabled) controls.update();
   renderer.render(scene, camera);
 }
 
