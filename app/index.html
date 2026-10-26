@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VC@D 1.2.18</title>
+<title>VC@D 1.2.19</title>
 <!-- Tailwind CSS & FontAwesome -->
 <script src="./vendor/tailwindcss.js"></script>
 <link rel="stylesheet" href="./vendor/fontawesome/css/all.min.css">
@@ -562,7 +562,7 @@
   <div class="flex items-center gap-3">
     <div class="font-bold text-sm tracking-wide flex items-center gap-2 select-none">
       <i class="fa-solid fa-cube"></i> VC@D
-      <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-500/30 text-cyan-300/90 bg-cyan-500/10">1.2.18</span>
+      <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-cyan-500/30 text-cyan-300/90 bg-cyan-500/10">1.2.19</span>
     </div>
     <div class="h-4 w-[1px] bg-[#383e4c]"></div>
     <div id="drawing-title-wrap" class="flex items-center gap-1.5 max-w-[150px] min-w-[90px] text-xs text-gray-300" title="Tên bản vẽ hiện tại">
@@ -1414,7 +1414,8 @@ function finishDraw(keepMode) {
   } else if(mode==='rectangle') {
     if(pts.length<2){setStatus('Rectangle cần 2 góc.');return;}
     const a=pts[0],b=pts[pts.length-1];
-    shapePoints=[[a.x,a.y],[b.x,a.y],[b.x,b.y],[a.x,b.y]];closed=true;
+    const z0=(a.z+b.z)/2||0;
+    shapePoints=[[a.x,a.y,z0],[b.x,a.y,z0],[b.x,b.y,z0],[a.x,b.y,z0]];closed=true;
     const sh=new THREE.Shape(); sh.moveTo(a.x,a.y);sh.lineTo(b.x,a.y);sh.lineTo(b.x,b.y);sh.lineTo(a.x,b.y);sh.closePath();
     mesh=new THREE.Mesh(new THREE.ShapeGeometry(sh, 128),new THREE.MeshStandardMaterial({color:'#5c7cfa',side:THREE.DoubleSide,transparent:true,opacity:.55}));
     mesh.position.z=0.005;
@@ -1525,86 +1526,99 @@ function extrudeOneObject(src, height, axis) {
     setStatus('EXTRUDE: ' + (src.name || 'obj') + ' không có đủ điểm.');
     return false;
   }
-  const closed = vcadIsClosedContour(worldPts) || src.closed || src.type === 'plane' || src.type === 'rectangle' || src.type === 'circle';
-  // Open curve → sheet (ribbon surface)
+  const closed = vcadIsClosedContour(worldPts) || src.closed || src.type === 'plane' || src.type === 'rectangle' || src.type === 'circle' || src.type === 'text';
   if (!closed && worldPts.length >= 2) {
     return extrudeOpenToSheet(src, worldPts, height, axis);
   }
-  // Closed → solid
-  if (worldPts[0].distanceTo(worldPts[worldPts.length - 1]) > 1e-6) {
-    worldPts = worldPts.concat([worldPts[0].clone()]);
-  }
-  // Deduplicate consecutive
-  const clean = [];
-  worldPts.forEach(p => {
-    if (!clean.length || clean[clean.length - 1].distanceTo(p) > 1e-8) clean.push(p);
+  // Làm sạch contour kín
+  const raw = [];
+  worldPts.forEach(function(p) {
+    if (!raw.length || raw[raw.length - 1].distanceTo(p) > 1e-7) raw.push(p.clone());
   });
-  if (clean.length >= 2 && clean[0].distanceTo(clean[clean.length - 1]) < 1e-8) {
-    // keep close
-  }
-  if (clean.length < 4) {
+  if (raw.length >= 2 && raw[0].distanceTo(raw[raw.length - 1]) < 1e-6) raw.pop();
+  if (raw.length < 3) {
     setStatus('EXTRUDE: contour quá ít điểm.');
     return false;
   }
+  // Đóng contour
+  const clean = raw.slice();
+  clean.push(raw[0].clone());
+
   const ax = axis === 'x' ? 'x' : axis === 'y' ? 'y' : 'z';
-  // Làm mượt contour (bỏ điểm gần trùng, giữ hình dạng)
-  const smooth = [];
-  clean.forEach(p => {
-    if (!smooth.length || smooth[smooth.length-1].distanceTo(p) > 1e-5) smooth.push(p);
-  });
-  if (smooth.length >= 2 && smooth[0].distanceTo(smooth[smooth.length-1]) < 1e-5) {
-    /* already closed */
-  } else if (smooth.length >= 3) {
-    smooth.push(smooth[0].clone());
+  const depth = Math.abs(height);
+
+  // Tâm contour (tránh hình thoi / lệch do tọa độ tuyệt đối + xoay)
+  const centroid = new THREE.Vector3();
+  raw.forEach(function(p) { centroid.add(p); });
+  centroid.multiplyScalar(1 / raw.length);
+
+  // Chiếu về 2D local quanh centroid theo trục extrude
+  function toLocal2(v) {
+    const d = new THREE.Vector3().subVectors(v, centroid);
+    if (ax === 'x') return [d.y, d.z];
+    if (ax === 'y') return [d.x, d.z];
+    return [d.x, d.y];
   }
-  const to2 = (v) => ax === 'x' ? [v.y, v.z] : ax === 'y' ? [v.x, v.z] : [v.x, v.y];
+
   const shape = new THREE.Shape();
-  smooth.forEach((p, i) => {
-    const [u, w] = to2(p);
-    if (i === 0) shape.moveTo(u, w); else shape.lineTo(u, w);
+  clean.forEach(function(p, i) {
+    const uv = toLocal2(p);
+    if (i === 0) shape.moveTo(uv[0], uv[1]);
+    else shape.lineTo(uv[0], uv[1]);
   });
   shape.closePath();
-  const depth = Math.abs(height);
+
   let geom;
   try {
-    // curveSegments cao + steps = mượt như CAD
     geom = new THREE.ExtrudeGeometry(shape, {
       depth: depth,
       bevelEnabled: false,
-      steps: Math.max(1, Math.min(8, Math.ceil(depth * 2))),
-      curveSegments: 64
+      steps: 1,
+      curveSegments: 24
     });
     geom.computeVertexNormals();
   } catch (e) {
     setStatus('EXTRUDE: không tạo được khối (contour lỗi).');
     return false;
   }
+
   const mesh = new THREE.Mesh(geom, new THREE.MeshStandardMaterial({
-    color: src.color || '#5c7cfa', roughness: 0.32, metalness: 0.06, side: THREE.DoubleSide, flatShading: false
+    color: src.color || '#5c7cfa',
+    roughness: 0.35,
+    metalness: 0.06,
+    side: THREE.DoubleSide,
+    flatShading: false
   }));
-  // Đặt đúng vị trí theo tọa độ world của contour
-  const baseZ = (() => {
-    let s = 0; smooth.forEach(p => { s += (ax==='z'?p.z:ax==='x'?p.x:p.y); });
-    return s / Math.max(1, smooth.length);
-  })();
+
+  // Hướng extrude: ExtrudeGeometry luôn đẩy theo +Z local
+  // Đặt orientation sao cho local +Z = trục world chọn
   if (ax === 'z') {
-    mesh.position.set(0, 0, height < 0 ? baseZ - depth : baseZ);
+    // local XYZ = world XYZ
+    mesh.position.set(centroid.x, centroid.y, height >= 0 ? centroid.z : centroid.z - depth);
   } else if (ax === 'x') {
-    mesh.rotation.y = Math.PI / 2;
-    mesh.position.set(height < 0 ? baseZ - depth : baseZ, 0, 0);
+    // local Z -> world X: rotate Y = +90°
+    mesh.rotation.order = 'XYZ';
+    mesh.rotation.set(0, Math.PI / 2, 0);
+    mesh.position.set(height >= 0 ? centroid.x : centroid.x - depth, centroid.y, centroid.z);
   } else {
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.position.set(0, height < 0 ? baseZ - depth : baseZ, 0);
+    // local Z -> world Y: rotate X = -90°
+    mesh.rotation.order = 'XYZ';
+    mesh.rotation.set(-Math.PI / 2, 0, 0);
+    mesh.position.set(centroid.x, height >= 0 ? centroid.y : centroid.y - depth, centroid.z);
   }
+
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+  mesh.updateMatrixWorld(true);
+
   const obj = {
     id: objectIdCounter++,
     name: (src.name || 'Shape') + '_Extruded',
     type: 'extrusion',
     mesh: mesh,
     layerId: currentLayerId,
-    color: src.color || '#5c7cfa'
+    color: src.color || '#5c7cfa',
+    closed: true
   };
   mesh.userData = { objData: obj };
   scene.add(mesh);
@@ -1613,6 +1627,7 @@ function extrudeOneObject(src, height, axis) {
   updateObjectsList();
   return true;
 }
+
 
 function extrudeOpenToSheet(src, worldPts, height, axis) {
   const ax = (axis || 'z').toLowerCase();
@@ -2439,10 +2454,29 @@ function setupEvents() {
           }
         }
         if (wantNear && hasPlane && n >= 2) {
-          const segs = o.closed ? n : n - 1;
-          for (let i = 0; i < segs; i++) {
-            const npt = closestOnSegment(pts[i], pts[(i+1) % n], planeHit);
-            if (npt) consider(npt, 'Near');
+          // Khối solid/extrusion: chỉ bắt Near trên cạnh bao (tránh dính cả mặt)
+          const t = String(o.type || '');
+          const isSolid = t === 'extrusion' || t === 'box' || t === 'sphere' || t === 'cylinder' || t === 'cone' || t === 'torus' || t === 'sheet';
+          if (isSolid && n > 32) {
+            // Dùng 4 góc footprint XY
+            const box = new THREE.Box3().setFromObject(o.mesh);
+            if (!box.isEmpty()) {
+              const mn = box.min, mx = box.max;
+              const corners = [
+                new THREE.Vector3(mn.x, mn.y, mn.z), new THREE.Vector3(mx.x, mn.y, mn.z),
+                new THREE.Vector3(mx.x, mx.y, mn.z), new THREE.Vector3(mn.x, mx.y, mn.z)
+              ];
+              for (let i = 0; i < 4; i++) {
+                const npt = closestOnSegment(corners[i], corners[(i+1)%4], planeHit);
+                if (npt) consider(npt, 'Near');
+              }
+            }
+          } else {
+            const segs = o.closed ? n : n - 1;
+            for (let i = 0; i < segs; i++) {
+              const npt = closestOnSegment(pts[i], pts[(i+1) % n], planeHit);
+              if (npt) consider(npt, 'Near');
+            }
           }
         }
         if (wantCen) {
@@ -2452,8 +2486,24 @@ function setupEvents() {
       });
     }
 
-    // Raycast mặt 3D (ưu tiên khi Face bật; luôn thử làm fallback khi đang vẽ)
-    if (!best && (wantFace || (typeof drawMode !== 'undefined' && drawMode))) {
+    // Raycast mặt 3D — chỉ khi bật Face, và không đè Endpoint/Mid
+    if (!best && wantFace) {
+      const hits = raycaster.intersectObjects(
+        objects.filter(o => o.mesh && o.mesh.visible && !o.hiddenByGroup).map(o => o.mesh), true
+      );
+      if (hits.length) {
+        // Không "dính" cả mặt: chỉ nhận Face nếu gần lưới pixel hợp lý
+        const hp = hits[0].point.clone();
+        const v = hp.clone().project(camera);
+        const sx = r.left + (v.x + 1) * r.width / 2;
+        const sy = r.top + (1 - v.y) * r.height / 2;
+        const dPix = Math.hypot(sx - e.clientX, sy - e.clientY);
+        // Face chỉ khi con trỏ thực sự trên bề mặt (ray hit) — luôn đúng với intersect
+        best = hp; bestKind = 'Face'; bestPx = dPix;
+      }
+    }
+    // Khi đang vẽ và chưa có snap: cho phép bắt mặt để lấy điểm 3D (không ghi đè End/Mid)
+    if (!best && typeof drawMode !== 'undefined' && drawMode) {
       const hits = raycaster.intersectObjects(
         objects.filter(o => o.mesh && o.mesh.visible && !o.hiddenByGroup).map(o => o.mesh), true
       );
